@@ -19,6 +19,30 @@ class WhatsAppService:
         return num
 
     @staticmethod
+    def enviar_mensaje_texto(telefono: str, mensaje: str) -> dict:
+        """Envía un mensaje de texto plano al usuario."""
+        telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
+        url = f"https://graph.facebook.com/v19.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/messages"
+        
+        headers = {
+            "Authorization": f"Bearer {Config.WHATSAPP_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono_fmt,
+            "type": "text",
+            "text": {"body": mensaje}
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=12)
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}
+
+    @staticmethod
     def enviar_hello_world(telefono: str) -> dict:
         """Prueba de envío usando la plantilla por defecto de Meta."""
         telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
@@ -44,30 +68,6 @@ class WhatsAppService:
             return response.json()
         except Exception as e:
             return {"error": str(e)}
-        
-    @staticmethod
-    def enviar_mensaje_texto(telefono: str, mensaje: str) -> dict:
-        """Envía un mensaje de texto plano al usuario."""
-        telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
-        url = f"https://graph.facebook.com/v19.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/messages"
-        
-        headers = {
-            "Authorization": f"Bearer {Config.WHATSAPP_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": telefono_fmt,
-            "type": "text",
-            "text": {"body": mensaje}
-        }
-
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=12)
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
 
     @staticmethod
     def enviar_recordatorio_plantilla(telefono: str, nombre: str, num_cuota: str, fecha_venc: str, importe: str) -> dict:
@@ -86,7 +86,7 @@ class WhatsAppService:
             "type": "template",
             "template": {
                 "name": "recordatorio_cuota_sortis",
-                "language": {"code": "es_AR"},  # Código correcto para Argentina
+                "language": {"code": "es_AR"},
                 "components": [
                     {
                         "type": "body",
@@ -106,7 +106,6 @@ class WhatsAppService:
             return response.json()
         except Exception as e:
             return {"error": str(e)}
-        
         
     @staticmethod
     def enviar_menu_botones(telefono: str, cuerpo_mensaje: str, botones: list) -> dict:
@@ -128,7 +127,7 @@ class WhatsAppService:
                 "type": "reply",
                 "reply": {
                     "id": btn['id'],
-                    "title": btn['title'][:20] # El título del botón admite máximo 20 caracteres
+                    "title": btn['title'][:20] # El título admite máximo 20 caracteres
                 }
             })
 
