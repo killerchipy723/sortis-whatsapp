@@ -16,9 +16,9 @@ def create_app():
     app.register_blueprint(mensaje_bp)
     app.register_blueprint(webhook_bp)
     
-    @app.route('/privacidad')
+    @app.route('/privacidad', methods=['GET'])
     def privacidad():
-        return "Politica de Privacidad de Sortis Motos. Los datos ingresados se utilizan exclusivamente para la gestion automatizada de cuotas de clientes."
+        return "Politica de Privacidad de Sortis Motos. Los datos recopilados se utilizan exclusivamente para la atención y consulta de cuotas de clientes."
 
     # Inicializar el scheduler de forma segura al crear la app
     # (Usamos un flag o validación simple si corre con reloader para evitar doble ejecución)
