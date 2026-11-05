@@ -60,7 +60,7 @@ class WhatsAppService:
             "type": "template",
             "template": {
                 "name": "recordatorio_cuota_sortis",
-                "language": {"code": "es"},  # Cambiar a 'es_AR' si en Meta la creaste como Español (Argentina)
+                "language": {"code": "es_ARG"},  # Cambiar a 'es_AR' si en Meta la creaste como Español (Argentina)
                 "components": [
                     {
                         "type": "body",
