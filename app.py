@@ -16,9 +16,24 @@ def create_app():
     app.register_blueprint(mensaje_bp)
     app.register_blueprint(webhook_bp)
     
+    from flask import Response
+
     @app.route('/privacidad', methods=['GET'])
     def privacidad():
-        return "Politica de Privacidad de Sortis Motos. Los datos recopilados se utilizan exclusivamente para la atención y consulta de cuotas de clientes."
+        html_content = """
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <title>Politica de Privacidad - Sortis Motos</title>
+        </head>
+        <body>
+            <h1>Politica de Privacidad</h1>
+            <p>Los datos recabados a través de esta plataforma de atención automatizada se utilizan exclusivamente para la gestión y consulta de cuotas de los clientes de Sortis Motos.</p>
+        </body>
+        </html>
+        """
+        return Response(html_content, status=200, mimetype='text/html')
 
     # Inicializar el scheduler de forma segura al crear la app
     # (Usamos un flag o validación simple si corre con reloader para evitar doble ejecución)
