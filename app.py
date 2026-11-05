@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import date
 import mysql.connector
 from flask import Flask, request, jsonify
@@ -10,6 +11,25 @@ logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 
 VERIFY_TOKEN = "sortis_motos_token_seguro"
+
+# Diccionario para gestionar el estado y la sesión de cada usuario en memoria
+# Estructura: { remitente: { "estado": "...", "ultimo_tiempo": timestamp, "dni": "...", "id_afiliado": "..." } }
+USER_SESSIONS = {}
+TIMEOUT_SESION = 600  # 10 minutos de inactividad en segundos (10 * 60)
+
+def obtener_o_crear_sesion(remitente):
+    """Obtiene la sesión del usuario, validando si expiró por inactividad."""
+    ahora = time.time()
+    if remitente in USER_SESSIONS:
+        sesion = USER_SESSIONS[remitente]
+        # Si pasó el tiempo límite de inactividad, reiniciamos la sesión
+        if ahora - sesion.get("ultimo_tiempo", 0) > TIMEOUT_SESION:
+            USER_SESSIONS[remitente] = {"estado": "INICIO", "ultimo_tiempo": ahora}
+        else:
+            sesion["ultimo_tiempo"] = ahora  # Actualizamos el timestamp de actividad
+    else:
+        USER_SESSIONS[remitente] = {"estado": "INICIO", "ultimo_tiempo": ahora}
+    return USER_SESSIONS[remitente]
 
 def obtener_conexion_db():
     """Establece conexión con la base de datos MySQL."""
@@ -70,54 +90,70 @@ def recibir_webhook():
                         messages = value["messages"]
                         for message in messages:
                             remitente = message.get("from")
+                            sesion = obtener_o_crear_sesion(remitente)
                             
-                            # 1. Mensajes de texto (Ingreso de DNI)
+                            # 1. Manejo de Mensajes de Texto según el estado actual
                             if "text" in message:
                                 texto_ingresado = message["text"]["body"].strip()
-                                logging.info(f"Texto recibido de {remitente}: {texto_ingresado}")
+                                texto_lower = texto_ingresado.lower()
+                                logging.info(f"Texto de {remitente} [Estado: {sesion['estado']}]: {texto_ingresado}")
                                 
-                                if texto_ingresado.isdigit() and 7 <= len(texto_ingresado) <= 8:
-                                    dni = texto_ingresado
-                                    try:
-                                        conn = obtener_conexion_db()
-                                        cursor = conn.cursor(dictionary=True)
-                                        
-                                        query_afiliado = """
-                                            SELECT idafiliado, apenomb 
-                                            FROM afiliado
-                                            WHERE dni = %s
-                                        """
-                                        cursor.execute(query_afiliado, (dni,))
-                                        afiliado = cursor.fetchone()
-                                        
-                                        cursor.close()
-                                        conn.close()
+                                # Comando global para volver al inicio en cualquier momento
+                                if texto_lower in ["hola", "menu", "volver", "0"]:
+                                    sesion["estado"] = "INICIO"
+                                    WhatsAppService.enviar_menu_principal(remitente)
+                                    continue
 
-                                        if afiliado:
-                                            nombre_cliente = afiliado['apenomb']
-                                            id_afiliado = afiliado['idafiliado']
+                                # Estado: Esperando que el usuario ingrese su DNI
+                                if sesion["estado"] == "ESPERANDO_DNI":
+                                    if texto_ingresado.isdigit() and 7 <= len(texto_ingresado) <= 8:
+                                        dni = texto_ingresado
+                                        try:
+                                            conn = obtener_conexion_db()
+                                            cursor = conn.cursor(dictionary=True)
                                             
-                                            botones_verificacion = [
-                                                {"id": f"verif_si_{dni}_{id_afiliado}", "title": "Sí, soy yo"},
-                                                {"id": f"verif_no_{dni}", "title": "No soy yo"}
-                                            ]
-                                            WhatsAppService.enviar_menu_botones(
-                                                remitente,
-                                                f"Hemos encontrado una cuenta con el DNI ingresado. ¿Pertenece a *{nombre_cliente}*?",
-                                                botones_verificacion
-                                            )
-                                        else:
-                                            WhatsAppService.enviar_mensaje_texto(
-                                                remitente, 
-                                                f"No encontramos registros con el DNI {dni}. Por favor, verifica el número e inténtalo de nuevo."
-                                            )
-                                    except Exception as db_err:
-                                        logging.error(f"Error de base de datos: {str(db_err)}")
+                                            query_afiliado = """
+                                                SELECT idafiliado, apenomb 
+                                                FROM afiliado
+                                                WHERE dni = %s
+                                            """
+                                            cursor.execute(query_afiliado, (dni,))
+                                            afiliado = cursor.fetchone()
+                                            
+                                            cursor.close()
+                                            conn.close()
+
+                                            if afiliado:
+                                                sesion["dni"] = dni
+                                                sesion["id_afiliado"] = afiliado['idafiliado']
+                                                sesion["estado"] = "VERIFICANDO_IDENTIDAD"
+                                                
+                                                nombre_cliente = afiliado['apenomb']
+                                                botones_verificacion = [
+                                                    {"id": "verif_si", "title": "Sí, soy yo"},
+                                                    {"id": "verif_no", "title": "No soy yo"}
+                                                ]
+                                                WhatsAppService.enviar_menu_botones(
+                                                    remitente,
+                                                    f"Hemos encontrado una cuenta con el DNI ingresado. ¿Pertenece a *{nombre_cliente}*?",
+                                                    botones_verificacion
+                                                )
+                                            else:
+                                                WhatsAppService.enviar_mensaje_texto(
+                                                    remitente, 
+                                                    "No encontramos registros con ese DNI. Verifica el número o escribe *Volver* para ir al menú."
+                                                )
+                                        except Exception as db_err:
+                                            logging.error(f"Error de base de datos: {str(db_err)}")
+                                            WhatsAppService.enviar_mensaje_texto(remitente, "Ocurrió un error al consultar tus datos.")
+                                    else:
                                         WhatsAppService.enviar_mensaje_texto(
                                             remitente, 
-                                            "Ocurrió un error al consultar tus datos. Inténtalo más tarde."
+                                            "Por favor, ingresa un número de DNI válido (7 u 8 dígitos) o escribe *Volver*."
                                         )
                                 else:
+                                    # Si escribe texto aleatorio fuera de un flujo activo, le mostramos el menú principal
+                                    sesion["estado"] = "INICIO"
                                     WhatsAppService.enviar_menu_principal(remitente)
 
                             # 2. Respuestas a Botones Interactivos
@@ -128,21 +164,26 @@ def recibir_webhook():
                                     logging.info(f"Botón presionado por {remitente}: {button_id}")
 
                                     if button_id == "btn_cliente":
+                                        sesion["estado"] = "ESPERANDO_DNI"
                                         WhatsAppService.enviar_mensaje_texto(
                                             remitente, 
                                             "Por favor, ingresa tu número de DNI para validar tu cuenta:"
                                         )
                                     elif button_id == "btn_no_cliente":
+                                        sesion["estado"] = "INICIO"
                                         WhatsAppService.enviar_mensaje_texto(
                                             remitente, 
                                             "¡Perfecto! Un asesor se pondrá en contacto contigo a la brevedad."
                                         )
                                     
-                                    # Paso A: Confirma identidad -> Listar planes
-                                    elif button_id.startswith("verif_si_"):
-                                        partes = button_id.split("_")
-                                        id_afiliado = partes[3]
-                                        
+                                    # Paso A: Confirma identidad (Sí, soy yo) -> Listar planes
+                                    elif button_id == "verif_si":
+                                        id_afiliado = sesion.get("id_afiliado")
+                                        if not id_afiliado:
+                                            WhatsAppService.enviar_mensaje_texto(remitente, "La sesión expiró. Escribe *Hola* para comenzar de nuevo.")
+                                            sesion["estado"] = "INICIO"
+                                            continue
+
                                         try:
                                             conn = obtener_conexion_db()
                                             cursor = conn.cursor(dictionary=True)
@@ -161,39 +202,46 @@ def recibir_webhook():
                                             conn.close()
 
                                             if planes:
+                                                sesion["estado"] = "SELECCIONANDO_PLAN"
                                                 nombre_cliente = planes[0]['apenomb']
                                                 detalle_msj = f"📋 *Detalle de planes encontrados:*\n"
                                                 detalle_msj += f"• *Cliente:* {nombre_cliente}\n\n"
                                                 detalle_msj += f"Selecciona el plan que deseas consultar:"
 
                                                 botones_planes = []
-                                                for p in planes[:3]:
+                                                for p in planes[:3]: # Máximo 3 botones en WhatsApp
                                                     id_plan_str = str(p['idplan'])
                                                     nombre_plan = p['nombreplan'] or f"Plan {id_plan_str}"
                                                     botones_planes.append({
-                                                        "id": f"plan_{id_afiliado}_{id_plan_str}",
+                                                        "id": f"plan_{id_plan_str}",
                                                         "title": nombre_plan[:20]
                                                     })
                                                 
                                                 WhatsAppService.enviar_menu_botones(remitente, detalle_msj, botones_planes)
                                             else:
                                                 WhatsAppService.enviar_mensaje_texto(remitente, "No se encontraron planes inscriptos para este cliente.")
+                                                sesion["estado"] = "INICIO"
                                         except Exception as db_err:
                                             logging.error(f"Error al buscar planes: {str(db_err)}")
                                             WhatsAppService.enviar_mensaje_texto(remitente, "Error al consultar los planes en el sistema.")
 
                                     # Paso B: Indica que NO es su identidad
-                                    elif button_id.startswith("verif_no_"):
+                                    elif button_id == "verif_no":
+                                        sesion["estado"] = "ESPERANDO_DNI"
                                         WhatsAppService.enviar_mensaje_texto(
                                             remitente, 
                                             "Entendido. Por favor, vuelve a ingresar tu número de DNI correcto:"
                                         )
 
-                                    # Paso C: Selecciona un plan -> Resumen inteligente de cuotas (Estilo NetBeans)
+                                    # Paso C: Selecciona un plan -> Resumen inteligente de cuotas estilo NetBeans
                                     elif button_id.startswith("plan_"):
-                                        partes = button_id.split("_")
-                                        id_afiliado = partes[1]
-                                        id_plan = partes[2]
+                                        id_plan = button_id.split("_")[1]
+                                        id_afiliado = sesion.get("id_afiliado")
+
+                                        if not id_afiliado:
+                                            WhatsAppService.enviar_mensaje_texto(remitente, "La sesión expiró. Escribe *Hola* para comenzar.")
+                                            sesion["estado"] = "INICIO"
+                                            continue
                                         
                                         try:
                                             conn = obtener_conexion_db()
@@ -219,22 +267,18 @@ def recibir_webhook():
                                                 restantes = 0
                                                 con_atraso = 0
 
-                                                # Analizamos una a una con la lógica de fechas
                                                 for c in cuotas:
-                                                    estado = (c['estado'] or "").strip().lower()
+                                                    estado_db = (c['estado'] or "").strip().lower()
                                                     fechavenc = c['fechavenc']
                                                     fechapago = c['fechapago']
 
-                                                    # Si tiene fecha de pago registrada o el estado indica pagada
-                                                    if fechapago is not None or estado in ["pagada", "pagado"]:
+                                                    if fechapago is not None or estado_db in ["pagada", "pagado"]:
                                                         pagadas += 1
                                                     else:
                                                         restantes += 1
-                                                        # Si no está paga y la fecha de vencimiento es anterior a hoy -> Con atraso/vencida
                                                         if fechavenc and fechavenc < hoy:
                                                             con_atraso += 1
 
-                                                # Armamos el reporte resumido amigable para WhatsApp
                                                 mensaje_respuesta = f"📊 *Resumen de Estado del Plan {id_plan}*\n\n"
                                                 mensaje_respuesta += f"• *Total de cuotas:* {total_cuotas}\n"
                                                 mensaje_respuesta += f"• *Pagadas:* {pagadas}\n"
@@ -242,15 +286,20 @@ def recibir_webhook():
                                                 mensaje_respuesta += f"• *Con atraso (Vencidas):* {con_atraso}\n\n"
 
                                                 if con_atraso >= 2:
-                                                    mensaje_respuesta += "⚠️ *Estado:* Situación crítica - Posee múltiples cuotas vencidas."
+                                                    mensaje_respuesta += "⚠️ *Estado:* Situación crítica - Posee múltiples cuotas vencidas.\n\n"
                                                 elif con_atraso == 1:
-                                                    mensaje_respuesta += "⚠️ *Estado:* Atraso - 1 cuota impaga vencida."
+                                                    mensaje_respuesta += "⚠️ *Estado:* Atraso - 1 cuota impaga vencida.\n\n"
                                                 else:
-                                                    mensaje_respuesta += "✅ *Estado:* Situación correcta al día."
+                                                    mensaje_respuesta += "✅ *Estado:* Situación correcta al día.\n\n"
 
+                                                mensaje_respuesta += "💡 *Escribe 'Hola' o 'Volver' cuando deseas realizar otra consulta.*"
+
+                                                # Finalizamos el ciclo de consulta dejando al usuario libre (no se buclea)
+                                                sesion["estado"] = "FINALIZADO"
                                                 WhatsAppService.enviar_mensaje_texto(remitente, mensaje_respuesta)
                                             else:
                                                 WhatsAppService.enviar_mensaje_texto(remitente, "No se registran cuotas para este plan.")
+                                                sesion["estado"] = "INICIO"
                                         except Exception as db_err:
                                             logging.error(f"Error consultando cuotas: {str(db_err)}")
                                             WhatsAppService.enviar_mensaje_texto(remitente, "Error al consultar las cuotas en el sistema.")
