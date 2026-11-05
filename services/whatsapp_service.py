@@ -82,3 +82,45 @@ class WhatsAppService:
             return response.json()
         except Exception as e:
             return {"error": str(e)}
+        
+        
+    @staticmethod
+    def enviar_menu_botones(telefono: str, cuerpo_mensaje: str, botones: list) -> dict:
+        """
+        Envía un mensaje interactivo con botones (máximo 3 botones).
+        botones: lista de diccionarios [{'id': 'btn_1', 'title': 'Opción 1'}, ...]
+        """
+        telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
+        url = f"https://graph.facebook.com/v19.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/messages"
+        
+        headers = {
+            "Authorization": f"Bearer {Config.WHATSAPP_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        action_buttons = []
+        for btn in botones[:3]: # Meta solo permite máximo 3 botones
+            action_buttons.append({
+                "type": "reply",
+                "reply": {
+                    "id": btn['id'],
+                    "title": btn['title'][:20] # El título del botón admite máximo 20 caracteres
+                }
+            })
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono_fmt,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": cuerpo_mensaje},
+                "action": {"buttons": action_buttons}
+            }
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=12)
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}

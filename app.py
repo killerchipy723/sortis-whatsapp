@@ -4,6 +4,7 @@ from routes.auth_routes import auth_bp
 from routes.cliente_routes import cliente_bp
 from routes.mensaje_routes import mensaje_bp
 from scheduler.scheduler import iniciar_scheduler
+from routes.webhook_routes import webhook_bp
 
 def create_app():
     app = Flask(__name__)
@@ -13,6 +14,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(cliente_bp)
     app.register_blueprint(mensaje_bp)
+    app.register_blueprint(webhook_bp)
 
     # Inicializar el scheduler de forma segura al crear la app
     # (Usamos un flag o validación simple si corre con reloader para evitar doble ejecución)
