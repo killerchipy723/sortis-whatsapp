@@ -87,7 +87,7 @@ def recibir_webhook():
                                         query_afiliado = """
                                             SELECT DISTINCT apf.idplan, apf.idalta 
                                             FROM altaplanafil apf
-                                            INNER JOIN afiliados a ON apf.idafiliado = a.idafiliado
+                                            INNER JOIN afiliado a ON apf.idafiliado = a.idafiliado
                                             WHERE a.dni = %s
                                         """
                                         cursor.execute(query_afiliado, (dni,))
