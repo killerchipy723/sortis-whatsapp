@@ -58,60 +58,36 @@ class RecordatorioService:
         finally:
             conn.close()
 
-    @staticmethod
+    @staticmethod   
     def procesar_envios_automaticos():
         """Método invocado por el Scheduler"""
         cuotas = RecordatorioService.obtener_cuotas_por_vencer(dias_anticipacion=3)
         print(f"[{datetime.now()}] Procesando recordatorios. Cuotas a notificar: {len(cuotas)}")
 
-        # Diccionario para agrupar cuotas por cliente (idafiliado)
-        clientes_agrupados = {}
-        for item in cuotas:
-            id_cli = item['idafiliado']
-            if id_cli not in clientes_agrupados:
-                clientes_agrupados[id_cli] = {
-                    'apenomb': item['apenomb'],
-                    'telefono': item['telefono'],
-                    'cuotas': []
-                }
-            clientes_agrupados[id_cli]['cuotas'].append(item)
+        for c in cuotas:
+            # Formatear fecha e importe
+            fecha_venc = c['fechavenc'].strftime('%d/%m/%Y') if hasattr(c['fechavenc'], 'strftime') else str(c['fechavenc'])
+            importe_fmt = f"{c['importe']:,.0f}".replace(",", ".")
 
-        # Iterar por cada cliente consolidando sus planes/cuotas
-        for id_cli, datos in clientes_agrupados.items():
-            
-            detalle_cuotas_texto = ""
-            total_importe = 0
-            
-            for c in datos['cuotas']:
-                fecha_venc = c['fechavenc'].strftime('%d/%m/%Y') if hasattr(c['fechavenc'], 'strftime') else str(c['fechavenc'])
-                importe_fmt = f"{c['importe']:,.0f}".replace(",", ".")
-                detalle_cuotas_texto += f"• Cuota N.º {c['numcuota']} (Venc: {fecha_venc}) - ${importe_fmt}\n"
-                total_importe += float(c['importe'])
-
-            total_importe_fmt = f"{total_importe:,.0f}".replace(",", ".")
-
-            # Mensaje unificado que contempla uno o varios planes
-            mensaje = (
-                f"Hola {datos['apenomb']} 👋\n"
-                f"Le recordamos que tiene los siguientes vencimientos pendientes en sus planes de Sortis Motos:\n\n"
-                f"{detalle_cuotas_texto}\n"
-                f"💰 **Total a abonar: ${total_importe_fmt}**\n\n"
-                f"Si ya realizó el pago, por favor desestime este mensaje."
+            # Enviar utilizando la plantilla oficial aprobada por Meta
+            res = WhatsAppService.enviar_recordatorio_plantilla(
+                telefono=c['telefono'],
+                nombre=c['apenomb'],
+                num_cuota=str(c['numcuota']),
+                fecha_venc=fecha_venc,
+                importe=importe_fmt
             )
-
-            # Enviar por WhatsApp API (Usando tu método de envío actual)
-            res = WhatsAppService.enviar_mensaje_texto(datos['telefono'], mensaje)
             
             # Evaluar respuesta de Meta
             estado = 'ENVIADO' if 'messages' in res else 'FALLIDO'
 
-            # Registrar el envío de cada cuota procesada individualmente
-            for c in datos['cuotas']:
-                RecordatorioService.registrar_envio(
-                    idcuota=c['idcuota'],
-                    idafiliado=id_cli,
-                    telefono=datos['telefono'],
-                    mensaje=mensaje,
-                    estado=estado,
-                    respuesta_api=res
-                )
+            # Registrar el envío en la base de datos
+            mensaje_log = f"Plantilla recordatorio_cuota_sortis - Cuota {c['numcuota']}"
+            RecordatorioService.registrar_envio(
+                idcuota=c['idcuota'],
+                idafiliado=c['idafiliado'],
+                telefono=c['telefono'],
+                mensaje=mensaje_log,
+                estado=estado,
+                respuesta_api=res
+            )
