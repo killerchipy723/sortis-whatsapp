@@ -43,6 +43,16 @@ class WhatsAppService:
             return {"error": str(e)}
 
     @staticmethod
+    def enviar_menu_principal(telefono: str) -> dict:
+        """Envía el menú principal con botones interactivos."""
+        cuerpo = "¡Hola! Bienvenido a Sortis Motos. Selecciona una opción para continuar:"
+        botones = [
+            {"id": "btn_cliente", "title": "Soy cliente"},
+            {"id": "btn_no_cliente", "title": "No soy cliente"}
+        ]
+        return WhatsAppService.enviar_menu_botones(telefono, cuerpo, botones)
+
+    @staticmethod
     def enviar_hello_world(telefono: str) -> dict:
         """Prueba de envío usando la plantilla por defecto de Meta."""
         telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
@@ -111,7 +121,6 @@ class WhatsAppService:
     def enviar_menu_botones(telefono: str, cuerpo_mensaje: str, botones: list) -> dict:
         """
         Envía un mensaje interactivo con botones (máximo 3 botones).
-        botones: lista de diccionarios [{'id': 'btn_1', 'title': 'Opción 1'}, ...]
         """
         telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
         url = f"https://graph.facebook.com/v19.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/messages"
@@ -122,12 +131,12 @@ class WhatsAppService:
         }
         
         action_buttons = []
-        for btn in botones[:3]: # Meta solo permite máximo 3 botones
+        for btn in botones[:3]:
             action_buttons.append({
                 "type": "reply",
                 "reply": {
                     "id": btn['id'],
-                    "title": btn['title'][:20] # El título admite máximo 20 caracteres
+                    "title": btn['title'][:20]
                 }
             })
 
@@ -147,13 +156,3 @@ class WhatsAppService:
             return response.json()
         except Exception as e:
             return {"error": str(e)}
-        
-    @staticmethod
-    def enviar_menu_principal(telefono: str) -> dict:
-        """Envía el menú principal con botones interactivos."""
-        cuerpo = "¡Hola! Bienvenido a Sortis Motos. Selecciona una opción para continuar:"
-        botones = [
-            {"id": "btn_cliente", "title": "Soy cliente"},
-            {"id": "btn_no_cliente", "title": "No soy cliente"}
-        ]
-        return WhatsAppService.enviar_menu_botones(telefono, cuerpo, botones)
