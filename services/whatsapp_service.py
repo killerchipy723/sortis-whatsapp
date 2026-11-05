@@ -1,93 +1,84 @@
-from datetime import datetime, timedelta
-from database.connection import get_db
-from services.whatsapp_service import WhatsAppService
+import re
+import requests
+from config import Config
 
-class RecordatorioService:
+class WhatsAppService:
     
     @staticmethod
-    def obtener_cuotas_por_vencer(dias_anticipacion=3):
-        """
-        Obtiene las cuotas sin pagar que vencen dentro de `dias_anticipacion` días 
-        y no tienen un envío exitoso registrado hoy.
-        """
-        fecha_target = (datetime.now() + timedelta(days=dias_anticipacion)).strftime('%Y-%m-%d')
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                sql = """
-                    SELECT 
-                        c.idcuota,
-                        c.numcuota,
-                        c.fechavenc,
-                        c.importe,
-                        a.idafiliado,
-                        a.apenomb,
-                        a.telefono,
-                        ap.idalta
-                    FROM cuotas c
-                    JOIN altaplanafil ap ON c.idalta = ap.idalta
-                    JOIN afiliado a ON ap.idafiliado = a.idafiliado
-                    LEFT JOIN envios_whatsapp ew 
-                            ON ew.idcuota = c.idcuota 
-                           AND ew.estado = 'ENVIADO' 
-                           AND DATE(ew.fecha_envio) = CURDATE()
-                    WHERE c.estado != 'Pagado'
-                      AND DATE(c.fechavenc) = %s
-                      AND a.telefono IS NOT NULL AND a.telefono != ''
-                      AND ew.idenvio IS NULL;
-                """
-                cursor.execute(sql, (fecha_target,))
-                return cursor.fetchall()
-        finally:
-            conn.close()
+    def limpiar_telefono(telefono: str) -> str:
+        """Limpia el teléfono para formato internacional (ej. 5493876123456)."""
+        if not telefono:
+            return ""
+        
+        num = re.sub(r'\D', '', str(telefono))
+        if num.startswith('0'):
+            num = num[1:]
+        if len(num) == 10:
+            num = "549" + num
+            
+        return num
 
     @staticmethod
-    def registrar_envio(idcuota, idafiliado, telefono, mensaje, estado, respuesta_api):
-        conn = get_db()
+    def enviar_hello_world(telefono: str) -> dict:
+        """Prueba de envío usando la plantilla por defecto de Meta."""
+        telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
+        url = f"https://graph.facebook.com/v19.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/messages"
+        
+        headers = {
+            "Authorization": f"Bearer {Config.WHATSAPP_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono_fmt,
+            "type": "template",
+            "template": {
+                "name": "hello_world",
+                "language": {"code": "en_US"}
+            }
+        }
+
         try:
-            with conn.cursor() as cursor:
-                sql = """
-                    INSERT INTO envios_whatsapp 
-                    (idcuota, idafiliado, telefono, mensaje, estado, respuesta_api)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                cursor.execute(sql, (
-                    idcuota, idafiliado, telefono, mensaje, estado, str(respuesta_api)
-                ))
-                conn.commit()
-        finally:
-            conn.close()
+            response = requests.post(url, json=payload, headers=headers, timeout=12)
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}
 
-    @staticmethod   
-    def procesar_envios_automaticos():
-        """Método invocado por el Scheduler"""
-        cuotas = RecordatorioService.obtener_cuotas_por_vencer(dias_anticipacion=3)
-        print(f"[{datetime.now()}] Procesando recordatorios. Cuotas a notificar: {len(cuotas)}")
+    @staticmethod
+    def enviar_recordatorio_plantilla(telefono: str, nombre: str, num_cuota: str, fecha_venc: str, importe: str) -> dict:
+        """Envía el recordatorio oficial de cuota usando la plantilla aprobada por Meta."""
+        telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
+        url = f"https://graph.facebook.com/v19.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/messages"
+        
+        headers = {
+            "Authorization": f"Bearer {Config.WHATSAPP_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono_fmt,
+            "type": "template",
+            "template": {
+                "name": "recordatorio_cuota_sortis",
+                "language": {"code": "es_AR"},  # Código correcto para Argentina
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {"type": "text", "text": str(nombre)},
+                            {"type": "text", "text": str(num_cuota)},
+                            {"type": "text", "text": str(fecha_venc)},
+                            {"type": "text", "text": str(importe)}
+                        ]
+                    }
+                ]
+            }
+        }
 
-        for c in cuotas:
-            # Formatear fecha e importe
-            fecha_venc = c['fechavenc'].strftime('%d/%m/%Y') if hasattr(c['fechavenc'], 'strftime') else str(c['fechavenc'])
-            importe_fmt = f"{c['importe']:,.0f}".replace(",", ".")
-
-            # Enviar utilizando la plantilla oficial aprobada por Meta
-            res = WhatsAppService.enviar_recordatorio_plantilla(
-                telefono=c['telefono'],
-                nombre=c['apenomb'],
-                num_cuota=str(c['numcuota']),
-                fecha_venc=fecha_venc,
-                importe=importe_fmt
-            )
-            
-            # Evaluar respuesta de Meta
-            estado = 'ENVIADO' if 'messages' in res else 'FALLIDO'
-
-            # Registrar el envío en la base de datos
-            mensaje_log = f"Plantilla recordatorio_cuota_sortis - Cuota {c['numcuota']}"
-            RecordatorioService.registrar_envio(
-                idcuota=c['idcuota'],
-                idafiliado=c['idafiliado'],
-                telefono=c['telefono'],
-                mensaje=mensaje_log,
-                estado=estado,
-                respuesta_api=res
-            )
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=12)
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}
