@@ -147,3 +147,13 @@ class WhatsAppService:
             return response.json()
         except Exception as e:
             return {"error": str(e)}
+        
+    @staticmethod
+    def enviar_menu_principal(telefono: str) -> dict:
+        """Envía el menú principal con botones interactivos."""
+        cuerpo = "¡Hola! Bienvenido a Sortis Motos. Selecciona una opción para continuar:"
+        botones = [
+            {"id": "btn_cliente", "title": "Soy cliente"},
+            {"id": "btn_no_cliente", "title": "No soy cliente"}
+        ]
+        return WhatsAppService.enviar_menu_botones(telefono, cuerpo, botones)
