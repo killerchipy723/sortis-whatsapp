@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 import mysql.connector
 from flask import Flask, request, jsonify
 from services.whatsapp_service import WhatsAppService
@@ -75,14 +76,12 @@ def recibir_webhook():
                                 texto_ingresado = message["text"]["body"].strip()
                                 logging.info(f"Texto recibido de {remitente}: {texto_ingresado}")
                                 
-                                # Si el usuario ingresó un DNI (7 u 8 dígitos)
                                 if texto_ingresado.isdigit() and 7 <= len(texto_ingresado) <= 8:
                                     dni = texto_ingresado
                                     try:
                                         conn = obtener_conexion_db()
                                         cursor = conn.cursor(dictionary=True)
                                         
-                                        # Consulta exacta en tabla 'afiliado'
                                         query_afiliado = """
                                             SELECT idafiliado, apenomb 
                                             FROM afiliado
@@ -98,7 +97,6 @@ def recibir_webhook():
                                             nombre_cliente = afiliado['apenomb']
                                             id_afiliado = afiliado['idafiliado']
                                             
-                                            # Preguntamos si es el cliente correcto, guardando el dni y idafiliado en el ID del botón
                                             botones_verificacion = [
                                                 {"id": f"verif_si_{dni}_{id_afiliado}", "title": "Sí, soy yo"},
                                                 {"id": f"verif_no_{dni}", "title": "No soy yo"}
@@ -140,17 +138,15 @@ def recibir_webhook():
                                             "¡Perfecto! Un asesor se pondrá en contacto contigo a la brevedad."
                                         )
                                     
-                                    # Paso A: El usuario confirma identidad (Sí, soy yo) -> Listar planes con sus nombres
+                                    # Paso A: Confirma identidad -> Listar planes
                                     elif button_id.startswith("verif_si_"):
                                         partes = button_id.split("_")
-                                        dni = partes[2]
                                         id_afiliado = partes[3]
                                         
                                         try:
                                             conn = obtener_conexion_db()
                                             cursor = conn.cursor(dictionary=True)
                                             
-                                            # Consulta uniendo afiliado, altaplanafil y plan
                                             query_planes = """
                                                 SELECT apf.idplan, p.nombreplan, a.apenomb 
                                                 FROM altaplanafil apf
@@ -171,12 +167,12 @@ def recibir_webhook():
                                                 detalle_msj += f"Selecciona el plan que deseas consultar:"
 
                                                 botones_planes = []
-                                                for p in planes[:3]: # Límite de 3 botones de WhatsApp
+                                                for p in planes[:3]:
                                                     id_plan_str = str(p['idplan'])
                                                     nombre_plan = p['nombreplan'] or f"Plan {id_plan_str}"
                                                     botones_planes.append({
                                                         "id": f"plan_{id_afiliado}_{id_plan_str}",
-                                                        "title": nombre_plan[:20]  # Máximo 20 caracteres por título de botón
+                                                        "title": nombre_plan[:20]
                                                     })
                                                 
                                                 WhatsAppService.enviar_menu_botones(remitente, detalle_msj, botones_planes)
@@ -186,14 +182,14 @@ def recibir_webhook():
                                             logging.error(f"Error al buscar planes: {str(db_err)}")
                                             WhatsAppService.enviar_mensaje_texto(remitente, "Error al consultar los planes en el sistema.")
 
-                                    # Paso B: El usuario indica que NO es su identidad
+                                    # Paso B: Indica que NO es su identidad
                                     elif button_id.startswith("verif_no_"):
                                         WhatsAppService.enviar_mensaje_texto(
                                             remitente, 
                                             "Entendido. Por favor, vuelve a ingresar tu número de DNI correcto:"
                                         )
 
-                                    # Paso C: El usuario selecciona un plan específico -> Mostrar cuotas usando tu consulta exacta
+                                    # Paso C: Selecciona un plan -> Resumen inteligente de cuotas (Estilo NetBeans)
                                     elif button_id.startswith("plan_"):
                                         partes = button_id.split("_")
                                         id_afiliado = partes[1]
@@ -203,7 +199,6 @@ def recibir_webhook():
                                             conn = obtener_conexion_db()
                                             cursor = conn.cursor(dictionary=True)
                                             
-                                            # Tu consulta exacta optimizada para cuotas
                                             query_cuotas = """
                                                 SELECT c.numcuota, c.fechavenc, c.fechapago, c.importe, c.estado, c.idcuota 
                                                 FROM cuotas c 
@@ -218,13 +213,41 @@ def recibir_webhook():
                                             conn.close()
 
                                             if cuotas:
-                                                mensaje_respuesta = f"💰 *Estado de Cuotas (Plan {id_plan}):*\n\n"
-                                                for c in cuotas[:5]: # Muestra las primeras 5 cuotas principales
-                                                    estado_txt = c['estado'] or 'Pendiente'
-                                                    venc = c['fechavenc']
-                                                    importe = c['importe']
-                                                    mensaje_respuesta += f"• Cuota {c['numcuota']}: ${importe} (Venc: {venc}) - [{estado_txt}]\n"
-                                                
+                                                hoy = date.today()
+                                                total_cuotas = len(cuotas)
+                                                pagadas = 0
+                                                restantes = 0
+                                                con_atraso = 0
+
+                                                # Analizamos una a una con la lógica de fechas
+                                                for c in cuotas:
+                                                    estado = (c['estado'] or "").strip().lower()
+                                                    fechavenc = c['fechavenc']
+                                                    fechapago = c['fechapago']
+
+                                                    # Si tiene fecha de pago registrada o el estado indica pagada
+                                                    if fechapago is not None or estado in ["pagada", "pagado"]:
+                                                        pagadas += 1
+                                                    else:
+                                                        restantes += 1
+                                                        # Si no está paga y la fecha de vencimiento es anterior a hoy -> Con atraso/vencida
+                                                        if fechavenc and fechavenc < hoy:
+                                                            con_atraso += 1
+
+                                                # Armamos el reporte resumido amigable para WhatsApp
+                                                mensaje_respuesta = f"📊 *Resumen de Estado del Plan {id_plan}*\n\n"
+                                                mensaje_respuesta += f"• *Total de cuotas:* {total_cuotas}\n"
+                                                mensaje_respuesta += f"• *Pagadas:* {pagadas}\n"
+                                                mensaje_respuesta += f"• *Restantes (Pendientes):* {restantes}\n"
+                                                mensaje_respuesta += f"• *Con atraso (Vencidas):* {con_atraso}\n\n"
+
+                                                if con_atraso >= 2:
+                                                    mensaje_respuesta += "⚠️ *Estado:* Situación crítica - Posee múltiples cuotas vencidas."
+                                                elif con_atraso == 1:
+                                                    mensaje_respuesta += "⚠️ *Estado:* Atraso - 1 cuota impaga vencida."
+                                                else:
+                                                    mensaje_respuesta += "✅ *Estado:* Situación correcta al día."
+
                                                 WhatsAppService.enviar_mensaje_texto(remitente, mensaje_respuesta)
                                             else:
                                                 WhatsAppService.enviar_mensaje_texto(remitente, "No se registran cuotas para este plan.")
