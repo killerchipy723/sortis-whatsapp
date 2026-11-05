@@ -1,19 +1,20 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.recordatorio_service import RecordatorioService
+import atexit
 
-scheduler = BackgroundScheduler()
-
-def init_scheduler(app):
-    # Tarea programada: Se ejecuta diariamente a las 09:00 AM
+def iniciar_scheduler():
+    scheduler = BackgroundScheduler()
+    
+    # Configurar para que se ejecute todos los días a las 09:00 AM
     scheduler.add_job(
         func=RecordatorioService.procesar_envios_automaticos,
-        trigger='cron',
+        trigger="cron",
         hour=9,
-        minute=0,
-        id='recordatorios_whatsapp_daily'
+        minute=0
     )
-    
-    # Iniciar ejecutor de fondo sin bloquear Flask
-    if not scheduler.running:
-        scheduler.start()
-        print("Scheduler de WhatsApp iniciado correctamente.")
+
+    scheduler.start()
+    print("⏰ [Scheduler] Iniciado correctamente en segundo plano.")
+
+    # Detener limpiamente al cerrar la app
+    atexit.register(lambda: scheduler.shutdown())
