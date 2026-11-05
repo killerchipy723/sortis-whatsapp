@@ -2,7 +2,7 @@ import logging
 import mysql.connector
 from flask import Flask, request, jsonify
 from services.whatsapp_service import WhatsAppService
-from config import Config  # Asegúrate de tener aquí los datos de conexión a MySQL
+from config import Config
 
 logging.basicConfig(level=logging.INFO)
 
@@ -70,7 +70,7 @@ def recibir_webhook():
                         for message in messages:
                             remitente = message.get("from")
                             
-                            # 1. Mensajes de texto (Saludos o DNI ingresado)
+                            # 1. Mensajes de texto (Ingreso de DNI)
                             if "text" in message:
                                 texto_ingresado = message["text"]["body"].strip()
                                 logging.info(f"Texto recibido de {remitente}: {texto_ingresado}")
@@ -82,39 +82,36 @@ def recibir_webhook():
                                         conn = obtener_conexion_db()
                                         cursor = conn.cursor(dictionary=True)
                                         
-                                        # Buscar afiliado y sus planes asociados por DNI
-                                        # (Ajusta la tabla 'afiliados' o 'clientes' según corresponda en tu BD)
+                                        # Consulta exacta en tabla 'afiliado'
                                         query_afiliado = """
-                                            SELECT DISTINCT apf.idplan, apf.idalta 
-                                            FROM altaplanafil apf
-                                            INNER JOIN afiliado a ON apf.idafiliado = a.idafiliado
-                                            WHERE a.dni = %s
+                                            SELECT idafiliado, apenomb 
+                                            FROM afiliado
+                                            WHERE dni = %s
                                         """
                                         cursor.execute(query_afiliado, (dni,))
-                                        planes = cursor.fetchall()
+                                        afiliado = cursor.fetchone()
                                         
                                         cursor.close()
                                         conn.close()
 
-                                        if planes:
-                                            # Creamos botones con los planes encontrados (máximo 3 soportados por WhatsApp)
-                                            botones_planes = []
-                                            for p in planes[:3]:
-                                                id_plan_str = str(p['idplan'])
-                                                botones_planes.append({
-                                                    "id": f"plan_{id_plan_str}",
-                                                    "title": f"Plan {id_plan_str}"[:20]
-                                                })
+                                        if afiliado:
+                                            nombre_cliente = afiliado['apenomb']
+                                            id_afiliado = afiliado['idafiliado']
                                             
+                                            # Preguntamos si es el cliente correcto, guardando el dni y idafiliado en el ID del botón
+                                            botones_verificacion = [
+                                                {"id": f"verif_si_{dni}_{id_afiliado}", "title": "Sí, soy yo"},
+                                                {"id": f"verif_no_{dni}", "title": "No soy yo"}
+                                            ]
                                             WhatsAppService.enviar_menu_botones(
-                                                remitente, 
-                                                f"Hemos encontrado planes asociados al DNI {dni}. Selecciona el plan a consultar:", 
-                                                botones_planes
+                                                remitente,
+                                                f"Hemos encontrado una cuenta con el DNI ingresado. ¿Pertenece a *{nombre_cliente}*?",
+                                                botones_verificacion
                                             )
                                         else:
                                             WhatsAppService.enviar_mensaje_texto(
                                                 remitente, 
-                                                f"No encontramos registros activos con el DNI {dni}. Por favor, verifica el número e inténtalo de nuevo."
+                                                f"No encontramos registros con el DNI {dni}. Por favor, verifica el número e inténtalo de nuevo."
                                             )
                                     except Exception as db_err:
                                         logging.error(f"Error de base de datos: {str(db_err)}")
@@ -123,7 +120,6 @@ def recibir_webhook():
                                             "Ocurrió un error al consultar tus datos. Inténtalo más tarde."
                                         )
                                 else:
-                                    # Saludo o texto genérico -> Muestra menú principal
                                     WhatsAppService.enviar_menu_principal(remitente)
 
                             # 2. Respuestas a Botones Interactivos
@@ -136,41 +132,98 @@ def recibir_webhook():
                                     if button_id == "btn_cliente":
                                         WhatsAppService.enviar_mensaje_texto(
                                             remitente, 
-                                            "Por favor, ingresa tu número de DNI para buscar tus planes:"
+                                            "Por favor, ingresa tu número de DNI para validar tu cuenta:"
                                         )
                                     elif button_id == "btn_no_cliente":
                                         WhatsAppService.enviar_mensaje_texto(
                                             remitente, 
                                             "¡Perfecto! Un asesor se pondrá en contacto contigo a la brevedad."
                                         )
-                                    elif button_id.startswith("plan_"):
-                                        # El usuario seleccionó un plan específico
-                                        id_plan = button_id.split("_")[1]
+                                    
+                                    # Paso A: El usuario confirma identidad (Sí, soy yo) -> Listar planes con sus nombres
+                                    elif button_id.startswith("verif_si_"):
+                                        partes = button_id.split("_")
+                                        dni = partes[2]
+                                        id_afiliado = partes[3]
                                         
-                                        # Aquí aplicamos tu consulta exacta de cuotas
                                         try:
                                             conn = obtener_conexion_db()
                                             cursor = conn.cursor(dictionary=True)
                                             
+                                            # Consulta uniendo afiliado, altaplanafil y plan
+                                            query_planes = """
+                                                SELECT apf.idplan, p.nombreplan, a.apenomb 
+                                                FROM altaplanafil apf
+                                                INNER JOIN afiliado a ON apf.idafiliado = a.idafiliado
+                                                INNER JOIN plan p ON apf.idplan = p.idplan
+                                                WHERE a.idafiliado = %s
+                                            """
+                                            cursor.execute(query_planes, (id_afiliado,))
+                                            planes = cursor.fetchall()
+                                            
+                                            cursor.close()
+                                            conn.close()
+
+                                            if planes:
+                                                nombre_cliente = planes[0]['apenomb']
+                                                detalle_msj = f"📋 *Detalle de planes encontrados:*\n"
+                                                detalle_msj += f"• *Cliente:* {nombre_cliente}\n\n"
+                                                detalle_msj += f"Selecciona el plan que deseas consultar:"
+
+                                                botones_planes = []
+                                                for p in planes[:3]: # Límite de 3 botones de WhatsApp
+                                                    id_plan_str = str(p['idplan'])
+                                                    nombre_plan = p['nombreplan'] or f"Plan {id_plan_str}"
+                                                    botones_planes.append({
+                                                        "id": f"plan_{id_afiliado}_{id_plan_str}",
+                                                        "title": nombre_plan[:20]  # Máximo 20 caracteres por título de botón
+                                                    })
+                                                
+                                                WhatsAppService.enviar_menu_botones(remitente, detalle_msj, botones_planes)
+                                            else:
+                                                WhatsAppService.enviar_mensaje_texto(remitente, "No se encontraron planes inscriptos para este cliente.")
+                                        except Exception as db_err:
+                                            logging.error(f"Error al buscar planes: {str(db_err)}")
+                                            WhatsAppService.enviar_mensaje_texto(remitente, "Error al consultar los planes en el sistema.")
+
+                                    # Paso B: El usuario indica que NO es su identidad
+                                    elif button_id.startswith("verif_no_"):
+                                        WhatsAppService.enviar_mensaje_texto(
+                                            remitente, 
+                                            "Entendido. Por favor, vuelve a ingresar tu número de DNI correcto:"
+                                        )
+
+                                    # Paso C: El usuario selecciona un plan específico -> Mostrar cuotas usando tu consulta exacta
+                                    elif button_id.startswith("plan_"):
+                                        partes = button_id.split("_")
+                                        id_afiliado = partes[1]
+                                        id_plan = partes[2]
+                                        
+                                        try:
+                                            conn = obtener_conexion_db()
+                                            cursor = conn.cursor(dictionary=True)
+                                            
+                                            # Tu consulta exacta optimizada para cuotas
                                             query_cuotas = """
                                                 SELECT c.numcuota, c.fechavenc, c.fechapago, c.importe, c.estado, c.idcuota 
                                                 FROM cuotas c 
                                                 INNER JOIN altaplanafil apf ON c.idalta = apf.idalta 
-                                                WHERE apf.idplan = %s 
+                                                WHERE apf.idafiliado = %s AND apf.idplan = %s 
                                                 ORDER BY c.idcuota ASC
                                             """
-                                            cursor.execute(query_cuotas, (id_plan,))
+                                            cursor.execute(query_cuotas, (id_afiliado, id_plan))
                                             cuotas = cursor.fetchall()
                                             
                                             cursor.close()
                                             conn.close()
 
                                             if cuotas:
-                                                # Formateamos un resumen breve para enviar por WhatsApp
-                                                mensaje_respuesta = f"*Estado de Cuotas - Plan {id_plan}:*\n\n"
-                                                for c in cuotas[:5]: # Mostramos las primeras 5 pendientes/recientes
+                                                mensaje_respuesta = f"💰 *Estado de Cuotas (Plan {id_plan}):*\n\n"
+                                                for c in cuotas[:5]: # Muestra las primeras 5 cuotas principales
                                                     estado_txt = c['estado'] or 'Pendiente'
-                                                    mensaje_respuesta += f"• Cuota {c['numcuota']}: ${c['importe']} (Venc: {c['fechavenc']}) - [{estado_txt}]\n"
+                                                    venc = c['fechavenc']
+                                                    importe = c['importe']
+                                                    mensaje_respuesta += f"• Cuota {c['numcuota']}: ${importe} (Venc: {venc}) - [{estado_txt}]\n"
                                                 
                                                 WhatsAppService.enviar_mensaje_texto(remitente, mensaje_respuesta)
                                             else:
