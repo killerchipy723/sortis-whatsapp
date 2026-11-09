@@ -7,25 +7,30 @@ class RecordatorioService:
     @staticmethod
     def obtener_cuotas_por_vencer(dias_anticipacion=3):
         """
-        Obtiene las cuotas sin pagar que vencen dentro de `dias_anticipacion` días 
-        y no tienen un envío exitoso registrado hoy.
+        Obtiene las cuotas sin pagar que vencen dentro de `dias_anticipacion` días,
+        trayendo el importe real (ya sea de la cuota o respaldado por el plan)
+        y evitando duplicados de envío en el día.
         """
         fecha_target = (datetime.now() + timedelta(days=dias_anticipacion)).strftime('%Y-%m-%d')
         conn = get_db()
         try:
             with conn.cursor() as cursor:
+                # Consulta ajustada integrando la tabla plan tal como en tu sistema funcional
                 sql = """
                     SELECT 
                         c.idcuota,
                         c.numcuota,
                         c.fechavenc,
-                        c.importe,
+                        COALESCE(NULLIF(c.importe, 0), p.importe, 0) AS importe,
                         a.idafiliado,
                         a.apenomb,
-                        a.telefono
+                        a.telefono,
+                        p.idplan,
+                        p.nombreplan
                     FROM cuotas c
                     JOIN altaplanafil ap ON c.idalta = ap.idalta
                     JOIN afiliado a ON ap.idafiliado = a.idafiliado
+                    JOIN plan p ON ap.idplan = p.idplan
                     LEFT JOIN envios_whatsapp ew 
                            ON ew.idcuota = c.idcuota 
                           AND ew.estado = 'ENVIADO' 
@@ -58,19 +63,28 @@ class RecordatorioService:
 
     @staticmethod
     def procesar_envios_automaticos():
-        """Metodo invocado por el Scheduler"""
+        """Método invocado por el Scheduler"""
         cuotas = RecordatorioService.obtener_cuotas_por_vencer(dias_anticipacion=3)
         print(f"[{datetime.now()}] Procesando recordatorios. Cuotas a notificar: {len(cuotas)}")
 
         for item in cuotas:
-            # Formatear la fecha a DD/MM/YYYY
-            fecha_venc = item['fechavenc'].strftime('%d/%m/%Y') if hasattr(item['fechavenc'], 'strftime') else str(item['fechavenc'])
-            importe_fmt = f"{item['importe']:,.0f}".replace(",", ".")
+            # 1. Proteger la fecha
+            if item.get('fechavenc'):
+                fecha_venc = item['fechavenc'].strftime('%d/%m/%Y') if hasattr(item['fechavenc'], 'strftime') else str(item['fechavenc'])
+            else:
+                fecha_venc = "Sin fecha"
 
-            # Mensaje tal como lo solicitaste
+            # 2. Gestionar el importe asegurando que nunca sea 0 si el plan tiene precio
+            importe_val = item.get('importe')
+            if importe_val is not None and importe_val > 0:
+                importe_fmt = f"{importe_val:,.0f}".replace(",", ".")
+            else:
+                importe_fmt = "A confirmar"
+
+            # Mensaje claro y profesional para WhatsApp
             mensaje = (
-                f"Hola {item['apenomb']} 👋\n"
-                f"Le recordamos que tiene pendiente la cuota N.º {item['numcuota']} correspondiente a su plan.\n"
+                f"Hola {item.get('apenomb', 'Cliente')} 👋\n"
+                f"Le recordamos que tiene pendiente la cuota N.º {item.get('numcuota', 'N/A')} de su plan *{item.get('nombreplan', 'General')}*.\n"
                 f"📅 Vencimiento: {fecha_venc}\n\n"
                 f"💰 Importe: ${importe_fmt}\n"
                 f"Si ya realizó el pago, por favor desestime este mensaje."
@@ -80,7 +94,7 @@ class RecordatorioService:
             res = WhatsAppService.enviar_mensaje_texto(item['telefono'], mensaje)
             
             # Evaluar respuesta de Meta
-            if 'messages' in res:
+            if isinstance(res, dict) and 'messages' in res:
                 estado = 'ENVIADO'
             else:
                 estado = 'FALLIDO'

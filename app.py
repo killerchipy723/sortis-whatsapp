@@ -5,6 +5,8 @@ import mysql.connector
 from flask import Flask, request, jsonify
 from services.whatsapp_service import WhatsAppService
 from config import Config
+from apscheduler.schedulers.background import BackgroundScheduler
+from services.recordatorio_service import RecordatorioService  # Ajusta la ruta según tu estructura
 
 logging.basicConfig(level=logging.INFO)
 
@@ -309,6 +311,28 @@ def recibir_webhook():
     except Exception as e:
         logging.error(f"Error procesando el webhook de WhatsApp: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+#--------------------------------------Envio de mensajes de whatsapp Diarios----------------------------------------
+def tarea_diaria_recordatorios():
+    with app.app_context():
+        logging.info("Ejecutando tarea automática de recordatorios de cuotas...")
+        try:
+            RecordatorioService.procesar_envios_automaticos()
+            logging.info("Tarea de recordatorios finalizada con éxito.")
+        except Exception as e:
+            logging.error(f"Error en la tarea automática de recordatorios: {str(e)}")
+
+# Inicializar el BackgroundScheduler
+scheduler = BackgroundScheduler()
+# Configura la hora en que deseas que se envíe todos los días (ej. a las 09:00 horas)
+scheduler.add_job(func=tarea_diaria_recordatorios, trigger="cron", hour=9, minute=0)
+scheduler.start()
+
+# Asegurarse de apagar el scheduler limpiamente al cerrar la app
+import atexit
+atexit.register(lambda: scheduler.shutdown())
+
+
 
 
 if __name__ == "__main__":
