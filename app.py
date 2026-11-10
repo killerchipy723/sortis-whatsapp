@@ -2,7 +2,7 @@ import logging
 import time
 from datetime import date
 import mysql.connector
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify,render_template,url_for,Request,redirect,flash,session
 from services.whatsapp_service import WhatsAppService
 from config import Config
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
+app.secret_key = 'sortis_motos_key_secreta_2026'
 VERIFY_TOKEN = "sortis_motos_token_seguro"
 
 # Diccionario para gestionar el estado y la sesión de cada usuario en memoria
@@ -42,9 +43,90 @@ def obtener_conexion_db():
         database=getattr(Config, 'DB_NAME', 'sortis_motos')
     )
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Servidor de Sortis Motos Activo y Funcionando", 200
+# --- RUTA DE LOGIN (Página principal) ---
+@app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        password_ingresada = request.form.get("password") # El DNI ingresado
+        
+        if not password_ingresada or not password_ingresada.isdigit():
+            flash("Por favor, ingresa un número de DNI válido.", "danger")
+            return render_template('login.html')
+
+        conn = None
+        cursor = None
+        try:
+            conn = obtener_conexion_db()
+            cursor = conn.cursor(dictionary=True)
+            
+            query = "SELECT idafiliado, apenomb, dni FROM afiliado WHERE dni = %s LIMIT 1"
+            cursor.execute(query, (password_ingresada,))
+            afiliado = cursor.fetchone()
+            
+            if afiliado:
+                session['user_id'] = afiliado['idafiliado']
+                session['user_name'] = afiliado['apenomb']
+                session['user_dni'] = afiliado['dni']
+                return redirect(url_for('index'))
+            else:
+                flash("DNI no registrado en el sistema.", "danger")
+                
+        except Exception as e:
+            print(f"Error en el login: {str(e)}")
+            flash("Ocurrió un error al intentar iniciar sesión.", "danger")
+            
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    return render_template('login.html')
+
+# --- RUTA DEL INDEX (Panel principal post-login) ---
+@app.route("/index")
+def index():
+    if 'user_id' not in session:
+        flash("Por favor, inicia sesión primero.", "warning")
+        return redirect(url_for('login'))
+        
+    idafiliado = session['user_id']
+    
+    conn = None
+    cursor = None
+    cuotas = []
+    planes = []
+    
+    try:
+        conn = obtener_conexion_db()
+        cursor = conn.cursor(dictionary=True)
+        
+        # 1. Consultar cuotas reales del afiliado logueado
+        query_cuotas = """
+            SELECT c.idcuota, c.numcuota, c.fechavenc, c.fechapago, 
+                   COALESCE(NULLIF(c.importe, 0), p.importe, 0) AS importe, 
+                   c.estado, p.nombreplan
+            FROM cuotas c
+            JOIN altaplanafil ap ON c.idalta = ap.idalta
+            JOIN plan p ON ap.idplan = p.idplan
+            WHERE ap.idafiliado = %s
+            ORDER BY c.numcuota ASC
+        """
+        cursor.execute(query_cuotas, (idafiliado,))
+        cuotas = cursor.fetchall()
+        
+        # 2. Consultar el catálogo real de planes desde la tabla plan
+        query_planes = "SELECT idplan, nombreplan, descripcion, cantcuotas, importe FROM plan"
+        cursor.execute(query_planes)
+        planes = cursor.fetchall()
+        
+    except Exception as e:
+        print(f"Error al cargar el dashboard: {str(e)}")
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+        
+    return render_template('index.html', cuotas=cuotas, planes=planes)
 
 
 @app.route("/privacidad", methods=["GET"])
@@ -336,4 +418,4 @@ atexit.register(lambda: scheduler.shutdown())
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=7410, debug=False)
+    app.run(host="0.0.0.0", port=7410, debug=True)

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sortis Motos - Iniciar Sesión</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Estilos personalizados -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body class="bg-sortis">
+
+    <div class="container d-flex align-items-center justify-content-center min-vh-100">
+        <div class="row w-100 justify-content-center">
+            <div class="col-md-5 col-lg-4">
+                
+                <!-- Tarjeta de Login -->
+                <div class="card card-sortis shadow-lg border-0 p-4">
+                    <div class="card-body">
+                        
+                        <!-- Logo o Encabezado -->
+                        <div class="text-center mb-4">
+                            <div class="brand-icon mb-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="currentColor" class="bi bi-shield-lock" viewBox="0 0 16 16">
+                                    <path d="M11 1a1 1 0 0 1 1 1v1.507a1 1 0 0 1-.301.714L9.355 5.5l1.344 1.279A1 1 0 0 1 11 7.493V9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7.493a1 1 0 0 1 .301-.714L6.645 5.5 5.301 4.221A1 1 0 0 1 5 3.507V2a1 1 0 0 1 1-1h5z"/>
+                                    <path d="M8 1a2 2 0 0 0-2 2v2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7z"/>
+                                </svg>
+                            </div>
+                            <h3 class="fw-bold text-dark">Sortis Motos</h3>
+                            <p class="text-muted small">Ingresa tus credenciales para acceder</p>
+                        </div>
+
+                        <!-- Formulario -->
+                        <form method="POST" action="">
+                            
+                            <!-- Campo Usuario / Email -->
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control" id="usuario" name="usuario" readonly value="Sortis" required>
+                                <label for="usuario">Usuario o Email</label>
+                            </div>
+
+                            <!-- Campo Contraseña -->
+                            <div class="form-floating mb-3">
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Contraseña" required>
+                                <label for="password">Contraseña</label>
+                            </div>
+
+                            <!-- Opciones adicionales -->
+                            <div class="d-flex justify-content-between align-items-center mb-4 small">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="remember">
+                                    <label class="form-check-label text-muted" for="remember">Recordarme</label>
+                                </div>
+                                <a href="#" class="text-decoration-none text-primary fw-medium">¿Olvidaste tu clave?</a>
+                            </div>
+
+                            <!-- Botón de Ingreso -->
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary-sortis btn-lg fw-semibold">Iniciar Sesión</button>
+                            </div>
+                        </form>
+
+                    </div>
+                </div>
+
+                <!-- Pie de página discreto -->
+                <div class="text-center mt-4">
+                    <p class="text-muted small mb-0">Sistema de Gestión & Bots WhatsApp &copy; 2026</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

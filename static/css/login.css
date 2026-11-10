@@ -1,0 +1,80 @@
+/* --- Estilos Generales y Tipografía --- */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f4f7f6;
+    color: #333333;
+}
+
+/* Fondo con sutil degradado elegante */
+.bg-sortis {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    min-height: 100vh;
+}
+
+/* --- Tarjeta de Login Moderna --- */
+.card-sortis {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-sortis:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.15);
+}
+
+/* --- Icono superior de la marca --- */
+.brand-icon {
+    width: 64px;
+    height: 64px;
+    background: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+    display: flex;
+    align-items: center;
+    justify-content: centerner;
+    border-radius: 50%;
+    margin: 0 auto;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.brand-icon:hover {
+    background: #0d6efd;
+    color: #ffffff;
+}
+
+/* --- Inputs flotantes Interactivos --- */
+.form-floating > .form-control {
+    border-radius: 10px;
+    border: 1px solid #ced4da;
+    padding: 1rem 0.75rem;
+}
+
+.form-floating > .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.12);
+}
+
+/* --- Botón Principal Personalizado --- */
+.btn-primary-sortis {
+    background-color: #0d6efd;
+    border: none;
+    border-radius: 10px;
+    padding: 0.75rem;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.btn-primary-sortis:hover {
+    background-color: #0b5ed7;
+    transform: translateY(-1px);
+}
+
+.btn-primary-sortis:active {
+    transform: translateY(0);
+}
+
+/* --- Checkbox personalizado --- */
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
