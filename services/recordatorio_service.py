@@ -9,8 +9,8 @@ class RecordatorioService:
         fecha_target = (datetime.now() + timedelta(days=dias_anticipacion)).strftime('%Y-%m-%d')
         conn = get_db()
         try:
-            # IMPORTANTE: Aseguramos que el cursor devuelva un diccionario para mapear las columnas
-            with conn.cursor(dictionary=True) as cursor:
+            # CORREGIDO: Se remueve dictionary=True para evitar el error de SteadyDB
+            with conn.cursor() as cursor:
                 sql = """
                     SELECT 
                         c.idcuota,
@@ -53,7 +53,7 @@ class RecordatorioService:
                 cursor.execute(sql, (
                     idcuota, idafiliado, telefono, mensaje, estado, str(respuesta_api)
                 ))
-                conn.commit() # Aseguramos que se guarde el registro en la base de datos
+                conn.commit()
         finally:
             conn.close()
 
