@@ -33,17 +33,13 @@
                             <p class="text-muted small">Ingresa tu número de DNI para acceder</p>
                         </div>
 
-                        <!-- 🔔 BLOQUE DE ALERTAS (FLASH MESSAGES) -->
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{{ category }} alert-dismissible fade show small py-2" role="alert">
-                                        {{ message }}
-                                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
-                                    </div>
-                                {% endfor %}
+                        <!-- 🔔 ALERTA DIRECTA DE ERROR -->
+                            {% if error %}
+                                <div class="alert alert-danger alert-dismissible fade show small py-2" role="alert">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ error }}
+                                    <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
                             {% endif %}
-                        {% endwith %}
 
                         <!-- Formulario -->
                         <form method="POST" action="">

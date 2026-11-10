@@ -7,6 +7,7 @@ from services.whatsapp_service import WhatsAppService
 from config import Config
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.recordatorio_service import RecordatorioService  # Ajusta la ruta según tu estructura
+from scheduler import iniciar_scheduler
 
 logging.basicConfig(level=logging.INFO)
 
@@ -46,42 +47,43 @@ def obtener_conexion_db():
 # --- RUTA DE LOGIN (Página principal) ---
 @app.route("/", methods=["GET", "POST"])
 def login():
+    error_mensaje = None # Variable para el mensaje de error directo
+    
     if request.method == "POST":
-        password_ingresada = request.form.get("password") # El DNI ingresado
+        password_ingresada = request.form.get("password")
         
         if not password_ingresada or not password_ingresada.isdigit():
-            flash("Por favor, ingresa un número de DNI válido.", "danger")
-            return render_template('login.html')
-
-        conn = None
-        cursor = None
-        try:
-            conn = obtener_conexion_db()
-            cursor = conn.cursor(dictionary=True)
-            
-            query = "SELECT idafiliado, apenomb, dni FROM afiliado WHERE dni = %s LIMIT 1"
-            cursor.execute(query, (password_ingresada,))
-            afiliado = cursor.fetchone()
-            
-            if afiliado:
-                session['user_id'] = afiliado['idafiliado']
-                session['user_name'] = afiliado['apenomb']
-                session['user_dni'] = afiliado['dni']
-                return redirect(url_for('index'))
-            else:
-                flash("DNI no registrado en el sistema.", "danger")
+            error_mensaje = "Por favor, ingresa un número de DNI válido (solo números)."
+        else:
+            conn = None
+            cursor = None
+            try:
+                conn = obtener_conexion_db()
+                cursor = conn.cursor(dictionary=True)
                 
-        except Exception as e:
-            print(f"Error en el login: {str(e)}")
-            flash("Ocurrió un error al intentar iniciar sesión.", "danger")
-            
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+                query = "SELECT idafiliado, apenomb, dni FROM afiliado WHERE dni = %s LIMIT 1"
+                cursor.execute(query, (password_ingresada,))
+                afiliado = cursor.fetchone()
+                
+                if afiliado:
+                    session['user_id'] = afiliado['idafiliado']
+                    session['user_name'] = afiliado['apenomb']
+                    session['user_dni'] = afiliado['dni']
+                    return redirect(url_for('index'))
+                else:
+                    # Mensaje claro y directo cuando el DNI no existe
+                    error_mensaje = "DNI no encontrado. Recuerda que tu contraseña es tu número de DNI."
+                    
+            except Exception as e:
+                print(f"Error en el login: {str(e)}")
+                error_mensaje = "Ocurrió un error al intentar conectar con la base de datos."
+                
+            finally:
+                if cursor: cursor.close()
+                if conn: conn.close()
 
-    return render_template('login.html')
+    # Le pasamos la variable 'error' a la plantilla
+    return render_template('login.html', error=error_mensaje)
 
 # --- RUTA DEL INDEX (Panel principal post-login) ---
 @app.route("/index")
@@ -425,5 +427,6 @@ atexit.register(lambda: scheduler.shutdown())
 
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=7410, debug=True)
+if __name__ == '__main__':
+    iniciar_scheduler(app) # Iniciamos el cron pasándole app
+    app.run(host='0.0.0.0', port=7410, debug=True)
