@@ -80,8 +80,8 @@ class WhatsAppService:
             return {"error": str(e)}
 
     @staticmethod
-    def enviar_recordatorio_plantilla(telefono: str, nombre: str, num_cuota: str, fecha_venc: str, importe: str) -> dict:
-        """Envía el recordatorio oficial de cuota usando la plantilla aprobada por Meta."""
+    def enviar_recordatorio_plantilla(telefono: str, nombre: str, num_cuota: str, nombre_plan: str, fecha_venc: str, importe: str) -> dict:
+        """Envía el recordatorio oficial usando la plantilla aprobada por Meta con 5 variables."""
         telefono_fmt = WhatsAppService.limpiar_telefono(telefono)
         url = f"https://graph.facebook.com/v19.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/messages"
         
@@ -101,10 +101,11 @@ class WhatsAppService:
                     {
                         "type": "body",
                         "parameters": [
-                            {"type": "text", "text": str(nombre)},
-                            {"type": "text", "text": str(num_cuota)},
-                            {"type": "text", "text": str(fecha_venc)},
-                            {"type": "text", "text": str(importe)}
+                            {"type": "text", "text": str(nombre)},       # {{1}}
+                            {"type": "text", "text": str(num_cuota)},    # {{2}}
+                            {"type": "text", "text": str(nombre_plan)},  # {{3}}
+                            {"type": "text", "text": str(fecha_venc)},   # {{4}}
+                            {"type": "text", "text": str(importe)}       # {{5}}
                         ]
                     }
                 ]
@@ -116,7 +117,6 @@ class WhatsAppService:
             return response.json()
         except Exception as e:
             return {"error": str(e)}
-        
     @staticmethod
     def enviar_menu_botones(telefono: str, cuerpo_mensaje: str, botones: list) -> dict:
         """

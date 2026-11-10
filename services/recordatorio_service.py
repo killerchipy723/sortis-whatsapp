@@ -83,15 +83,17 @@ class RecordatorioService:
 
             # Mensaje de respaldo (para guardar en la tabla envios_whatsapp)
             mensaje_log = (
-                f"Hola {nombre_cliente} 👋 Le recordamos que tiene pendiente la cuota N.º {num_cuota} de su plan {nombre_plan}. "
-                f"Vencimiento: {fecha_venc}. Importe: {importe_fmt}."
+                f"¡Hola, {nombre_cliente}! Te recordamos que la cuota N.º {num_cuota} correspondiente al plan {nombre_plan} "
+                f"vence en 3 días ({fecha_venc}). El monto pendiente es de {importe_fmt}. "
+                f"Si ya realizaste el pago, por favor desestimá este mensaje."
             )
 
-            # Enviar usando la plantilla oficial aprobada por Meta (evita bloqueos fuera de las 24hs)
+            # Enviar usando la plantilla oficial con los 5 parámetros
             res = WhatsAppService.enviar_recordatorio_plantilla(
                 telefono=item['telefono'],
                 nombre=nombre_cliente,
                 num_cuota=num_cuota,
+                nombre_plan=nombre_plan,
                 fecha_venc=fecha_venc,
                 importe=importe_fmt
             )
