@@ -128,6 +128,14 @@ def index():
         
     return render_template('index.html', cuotas=cuotas, planes=planes)
 
+# ----------------- CERRAR SESSION --------------------------------------
+@app.route("/logout")
+def logout():
+    # Limpiamos todas las variables de la sesión
+    session.clear()
+    flash("Has cerrado sesión correctamente.", "info")
+    return redirect(url_for('login'))
+
 
 @app.route("/privacidad", methods=["GET"])
 def privacidad():
