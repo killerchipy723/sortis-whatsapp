@@ -20,50 +20,51 @@
             background: #0f172a;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
-        /* Logo grande con contorno blanco */
+        /* Logo estático con contorno blanco */
         .logo-custom {
-            width: 48px;
-            height: 48px;
+            width: 44px;
+            height: 44px;
             object-fit: contain;
             background: #ffffff;
-            padding: 4px;
+            padding: 3px;
             border-radius: 8px;
             border: 2px solid #ffffff;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
         .card-dashboard {
             border: none;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            transition: transform 0.2s ease;
         }
         .card-plan {
             border-left: 4px solid #0d6efd;
         }
         .table-responsive {
             border-radius: 8px;
-            overflow: hidden;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
-        /* Tabla compacta optimizada para que entren todas las columnas */
-        .table-compact th, .table-compact td {
-            padding: 0.55rem 0.75rem;
-            font-size: 0.88rem;
-            white-space: nowrap; /* Evita que el texto se rompa de manera fea */
+        /* Tabla ultracompacta para teléfonos */
+        .table-mobile {
+            font-size: 0.82rem;
+        }
+        .table-mobile th, .table-mobile td {
+            padding: 0.45rem 0.4rem !important;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .table-mobile th:first-child, .table-mobile td:first-child {
+            text-align: left;
         }
         .badge-estado {
-            font-size: 0.75rem;
-            padding: 0.3em 0.6em;
+            font-size: 0.72rem;
+            padding: 0.3em 0.5em;
         }
         /* Tarjetas de planes compactas */
         .card-plan-compact {
             border: 1px solid #e2e8f0;
             border-radius: 10px;
             background: #ffffff;
-            transition: all 0.2s ease;
-        }
-        .card-plan-compact:hover {
-            border-color: #cbd5e1;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
     </style>
 </head>
@@ -71,32 +72,32 @@
 
     <!-- Navbar Superior -->
     <nav class="navbar navbar-expand-lg navbar-dark navbar-sortis sticky-top py-2">
-        <div class="container-fluid px-4">
+        <div class="container-fluid px-3">
             <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="#">
                 <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Sortis Motos" class="logo-custom">
-                <span>Sortis Motos</span>
+                <span class="fs-6 fs-md-5">Sortis Motos</span>
             </a>
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
                 <span class="text-light small d-none d-sm-inline">
                     <i class="bi bi-person-circle text-primary me-1"></i> {{ session.get('user_name', 'Cliente') }}
                 </span>
-                <a href="/logout" class="btn btn-outline-light btn-sm">
-                    <i class="bi bi-box-arrow-right me-1"></i> Salir
+                <a href="/logout" class="btn btn-outline-light btn-sm px-2 py-1">
+                    <i class="bi bi-box-arrow-right"></i> <span class="d-none d-sm-inline">Salir</span>
                 </a>
             </div>
         </div>
     </nav>
 
     <!-- Contenido Principal -->
-    <div class="container py-4">
+    <div class="container px-3 py-3">
         
         <!-- Saludo y Resumen de Estado -->
-        <div class="row mb-4">
+        <div class="row mb-3">
             <div class="col-12">
-                <div class="p-4 bg-white card-dashboard d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                <div class="p-3 p-md-4 bg-white card-dashboard d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
                     <div>
-                        <h4 class="fw-bold text-dark mb-1">¡Hola, {{ session.get('user_name', 'Cliente') }}! 👋</h4>
-                        <p class="text-muted small mb-0">DNI: <span class="fw-semibold text-dark">{{ session.get('user_dni') }}</span> | Resumen en tiempo real de tu cuenta.</p>
+                        <h5 class="fw-bold text-dark mb-1">¡Hola, {{ session.get('user_name', 'Cliente') }}! 👋</h5>
+                        <p class="text-muted small mb-0">DNI: <span class="fw-semibold text-dark">{{ session.get('user_dni') }}</span></p>
                     </div>
                     {% if cuotas %}
                         {% set total_cuotas = cuotas|length %}
@@ -104,11 +105,11 @@
                         {% set pendientes = total_cuotas - pagadas %}
                         <div>
                             {% if pendientes == 0 %}
-                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fw-semibold">
-                                    <i class="bi bi-check-circle-fill me-1"></i> Al día
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill fw-semibold small">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Cuenta Al Día
                                 </span>
                             {% else %}
-                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 rounded-pill fw-semibold">
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 rounded-pill fw-semibold small">
                                     <i class="bi bi-exclamation-triangle-fill me-1"></i> Cuotas Pendientes
                                 </span>
                             {% endif %}
@@ -124,59 +125,56 @@
             {% set pagadas = cuotas|selectattr('estado', 'equalto', 'Pagado')|list|length %}
             {% set pendientes = total_cuotas - pagadas %}
             
-            <div class="row g-3 mb-4">
-                <div class="col-md-4">
-                    <div class="card card-dashboard p-3 bg-white border-start border-primary border-4">
-                        <div class="card-body py-1">
-                            <span class="text-muted small fw-semibold text-uppercase">Total Cuotas Registradas</span>
-                            <h3 class="fw-bold text-dark mt-1 mb-0">{{ total_cuotas }}</h3>
-                        </div>
+            <div class="row g-2 mb-3">
+                <div class="col-4">
+                    <div class="card card-dashboard p-2 bg-white text-center border-start border-primary border-3">
+                        <span class="text-muted small style-title">Total</span>
+                        <h4 class="fw-bold text-dark mb-0">{{ total_cuotas }}</h4>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="card card-dashboard p-3 bg-white border-start border-success border-4">
-                        <div class="card-body py-1">
-                            <span class="text-muted small fw-semibold text-uppercase">Cuotas Pagadas</span>
-                            <h3 class="fw-bold text-success mt-1 mb-0">{{ pagadas }}</h3>
-                        </div>
+                <div class="col-4">
+                    <div class="card card-dashboard p-2 bg-white text-center border-start border-success border-3">
+                        <span class="text-muted small style-title">Pagadas</span>
+                        <h4 class="fw-bold text-success mb-0">{{ pagadas }}</h4>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="card card-dashboard p-3 bg-white border-start border-warning border-4">
-                        <div class="card-body py-1">
-                            <span class="text-muted small fw-semibold text-uppercase">Cuotas Pendientes</span>
-                            <h3 class="fw-bold text-warning-emphasis mt-1 mb-0">{{ pendientes }}</h3>
-                        </div>
+                <div class="col-4">
+                    <div class="card card-dashboard p-2 bg-white text-center border-start border-warning border-3">
+                        <span class="text-muted small style-title">Pendientes</span>
+                        <h4 class="fw-bold text-warning-emphasis mb-0">{{ pendientes }}</h4>
                     </div>
                 </div>
             </div>
         {% endif %}
 
-        <!-- Sección: Estado de Mis Cuotas (Tabla Compacta) -->
-        <div class="row mb-4">
+        <!-- Sección: Estado de Mis Cuotas -->
+        <div class="row mb-3">
             <div class="col-12">
-                <div class="card card-dashboard card-plan p-3 p-md-4 bg-white mb-3">
-                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
-                        <div>
-                            <h5 class="fw-bold mb-1 text-dark"><i class="bi bi-wallet2 text-primary me-2"></i> Estado de Cuenta y Cuotas</h5>
-                            <p class="text-muted small mb-0">Consulta detallada de tus planes y pagos.</p>
-                        </div>
-                        
+                <div class="card card-dashboard card-plan p-3 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-wallet2 text-primary me-1"></i> Cuotas y Pagos</h6>
                         {% if cuotas %}
-                        <button class="btn btn-outline-primary btn-sm fw-semibold rounded-pill px-3 mt-2 mt-md-0" type="button" data-bs-toggle="collapse" data-bs-target="#tablaDetalleCuotas" aria-expanded="false" aria-controls="tablaDetalleCuotas">
-                            <i class="bi bi-list-ul me-1"></i> Ver / Ocultar Detalle Completo
+                        <button class="btn btn-outline-primary btn-sm fw-semibold rounded-pill px-2 py-0 fs-7" type="button" data-bs-toggle="collapse" data-bs-target="#tablaDetalleCuotas" aria-expanded="false">
+                            Ver / Ocultar
                         </button>
                         {% endif %}
                     </div>
 
-                    <!-- Tabla Oculta en Acordeón -->
+                    <!-- NOMBRE DEL PLAN UBICADO ARRIBA DE LA TABLA -->
+                    {% if cuotas %}
+                        <div class="bg-light p-2 rounded-2 mb-2 border">
+                            <span class="text-muted small">Plan actual:</span> 
+                            <strong class="text-primary small d-block d-sm-inline ms-sm-1">{{ cuotas[0].nombreplan }}</strong>
+                        </div>
+                    {% endif %}
+
+                    <!-- Tabla Ultra Completa y Compacta (4 Columnas) -->
                     <div class="collapse {% if not cuotas %}show{% endif %}" id="tablaDetalleCuotas">
-                        <div class="table-responsive mt-2">
-                            <table class="table table-hover align-middle mb-0 table-compact">
-                                <thead class="table-light text-uppercase fs-7">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 table-mobile">
+                                <thead class="table-light text-uppercase">
                                     <tr>
-                                        <th>Plan Asociado</th>
-                                        <th>N.º Cuota</th>
+                                        <th>Cuota</th>
                                         <th>Vencimiento</th>
                                         <th>Importe</th>
                                         <th>Estado</th>
@@ -186,15 +184,12 @@
                                     {% if cuotas %}
                                         {% for c in cuotas %}
                                         <tr>
-                                            <td>
-                                                <span class="fw-bold text-primary">{{ c.nombreplan }}</span>
-                                            </td>
-                                            <td class="fw-semibold">N.º {{ c.numcuota }}</td>
-                                            <td>
+                                            <td class="fw-bold text-dark">N.º {{ c.numcuota }}</td>
+                                            <td class="text-muted">
                                                 {% if c.fechavenc %}
                                                     {{ c.fechavenc.strftime('%d/%m/%Y') if c.fechavenc.__class__.__name__ == 'date' else c.fechavenc }}
                                                 {% else %}
-                                                    Sin fecha
+                                                    -
                                                 {% endif %}
                                             </td>
                                             <td class="fw-semibold text-dark">
@@ -211,7 +206,7 @@
                                         {% endfor %}
                                     {% else %}
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted py-4">No se encontraron cuotas registradas para tu usuario.</td>
+                                            <td colspan="4" class="text-center text-muted py-3">No hay cuotas registradas.</td>
                                         </tr>
                                     {% endif %}
                                 </tbody>
@@ -224,47 +219,41 @@
         </div>
 
         <!-- Sección: Catálogo de Planes Disponibles -->
-        <div class="row mb-4">
+        <div class="row mb-3">
             <div class="col-12">
-                <div class="card card-dashboard p-3 p-md-4 bg-white">
+                <div class="card card-dashboard p-3 bg-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="fw-bold mb-1 text-dark"><i class="bi bi-grid text-primary me-2"></i> Catálogo de Planes Disponibles</h5>
-                            <p class="text-muted small mb-0">Explora de forma resumida las opciones de financiación vigentes.</p>
+                            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-grid text-primary me-1"></i> Planes Disponibles</h6>
                         </div>
-                        <button class="btn btn-outline-secondary btn-sm fw-semibold rounded-pill px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePlanes" aria-expanded="false" aria-controls="collapsePlanes">
-                            <i class="bi bi-chevron-down me-1"></i> Desplegar Planes
+                        <button class="btn btn-outline-secondary btn-sm fw-semibold rounded-pill px-2 py-0 fs-7" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePlanes" aria-expanded="false">
+                            Desplegar
                         </button>
                     </div>
 
                     <!-- Bloque colapsado con tarjetas compactas -->
-                    <div class="collapse mt-3" id="collapsePlanes">
-                        <hr class="text-muted opacity-25 mb-3">
-                        <div class="row g-3">
+                    <div class="collapse mt-2" id="collapsePlanes">
+                        <hr class="text-muted opacity-25 my-2">
+                        <div class="row g-2">
                             {% if planes %}
                                 {% for plan in planes %}
-                                <div class="col-md-4">
-                                    <div class="card-plan-compact p-3 h-100 d-flex flex-column justify-content-between">
-                                        <div>
-                                            <h6 class="fw-bold text-primary mb-1">{{ plan.nombreplan }}</h6>
-                                            <p class="text-muted small mb-2" style="font-size: 0.85rem;">
-                                                {{ plan.descripcion if plan.descripcion else 'Plan de financiación oficial.' }}
-                                            </p>
-                                        </div>
-                                        <div class="pt-2 border-top border-light">
-                                            <div class="d-flex justify-content-between align-items-center small">
-                                                <span class="text-muted"><i class="bi bi-clock"></i> {{ plan.cantcuotas if plan.cantcuotas else 'N/A' }} cuotas</span>
-                                                <span class="fw-bold text-dark">
-                                                    ${{ "{:,.0f}".format(plan.importe).replace(",", ".") if plan.importe else "Consolidar" }}
-                                                </span>
+                                <div class="col-12 col-md-4">
+                                    <div class="card-plan-compact p-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="fw-bold text-primary mb-0 small">{{ plan.nombreplan }}</h6>
+                                                <span class="text-muted style-title"><i class="bi bi-clock"></i> {{ plan.cantcuotas if plan.cantcuotas else 'N/A' }} cuotas</span>
                                             </div>
+                                            <span class="fw-bold text-dark small">
+                                                ${{ "{:,.0f}".format(plan.importe).replace(",", ".") if plan.importe else "-" }}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
                                 {% endfor %}
                             {% else %}
                                 <div class="col-12">
-                                    <p class="text-muted small mb-0">No hay planes cargados en este momento.</p>
+                                    <p class="text-muted style-title mb-0">No hay planes cargados en este momento.</p>
                                 </div>
                             {% endif %}
                         </div>
