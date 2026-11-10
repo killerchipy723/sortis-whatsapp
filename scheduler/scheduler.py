@@ -19,7 +19,7 @@ def iniciar_scheduler(app): # <--- Pasamos 'app' como parámetro
         func=tarea_diaria_con_contexto,
         trigger="cron",
         hour=10,
-        minute=00
+        minute=20
     )
     
     scheduler.start()

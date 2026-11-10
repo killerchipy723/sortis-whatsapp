@@ -15,7 +15,6 @@ class RecordatorioService:
         conn = get_db()
         try:
             with conn.cursor() as cursor:
-                # Consulta ajustada integrando la tabla plan tal como en tu sistema funcional
                 sql = """
                     SELECT 
                         c.idcuota,
@@ -58,6 +57,7 @@ class RecordatorioService:
                 cursor.execute(sql, (
                     idcuota, idafiliado, telefono, mensaje, estado, str(respuesta_api)
                 ))
+                conn.commit() # Aseguramos que se guarde el registro en la base de datos
         finally:
             conn.close()
 
@@ -77,34 +77,42 @@ class RecordatorioService:
             # 2. Gestionar el importe asegurando que nunca sea 0 si el plan tiene precio
             importe_val = item.get('importe')
             if importe_val is not None and importe_val > 0:
-                importe_fmt = f"{importe_val:,.0f}".replace(",", ".")
+                importe_fmt = f"${importe_val:,.0f}".replace(",", ".")
             else:
                 importe_fmt = "A confirmar"
 
-            # Mensaje claro y profesional para WhatsApp
-            mensaje = (
-                f"Hola {item.get('apenomb', 'Cliente')} 👋\n"
-                f"Le recordamos que tiene pendiente la cuota N.º {item.get('numcuota', 'N/A')} de su plan *{item.get('nombreplan', 'General')}*.\n"
-                f"📅 Vencimiento: {fecha_venc}\n\n"
-                f"💰 Importe: ${importe_fmt}\n"
-                f"Si ya realizó el pago, por favor desestime este mensaje."
+            nombre_cliente = item.get('apenomb', 'Cliente')
+            num_cuota = str(item.get('numcuota', 'N/A'))
+            nombre_plan = str(item.get('nombreplan', 'General'))
+
+            # Mensaje de respaldo (para guardar en la tabla envios_whatsapp)
+            mensaje_log = (
+                f"Hola {nombre_cliente} 👋 Le recordamos que tiene pendiente la cuota N.º {num_cuota} de su plan {nombre_plan}. "
+                f"Vencimiento: {fecha_venc}. Importe: {importe_fmt}."
             )
 
-            # Enviar por WhatsApp API
-            res = WhatsAppService.enviar_mensaje_texto(item['telefono'], mensaje)
+            # Enviar usando la plantilla oficial aprobada por Meta (evita bloqueos fuera de las 24hs)
+            res = WhatsAppService.enviar_recordatorio_plantilla(
+                telefono=item['telefono'],
+                nombre=nombre_cliente,
+                num_cuota=num_cuota,
+                fecha_venc=fecha_venc,
+                importe=importe_fmt
+            )
             
             # Evaluar respuesta de Meta
             if isinstance(res, dict) and 'messages' in res:
                 estado = 'ENVIADO'
             else:
                 estado = 'FALLIDO'
+                print(f"⚠️ Error enviando WhatsApp a {item['telefono']}: {res}")
 
             # Registrar en la base de datos
             RecordatorioService.registrar_envio(
                 idcuota=item['idcuota'],
                 idafiliado=item['idafiliado'],
                 telefono=item['telefono'],
-                mensaje=mensaje,
+                mensaje=mensaje_log,
                 estado=estado,
                 respuesta_api=res
             )
