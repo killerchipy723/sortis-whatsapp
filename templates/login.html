@@ -26,10 +26,8 @@
                         <!-- Logo o Encabezado -->
                         <div class="text-center mb-4">
                             <div class="brand-icon mb-3">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="currentColor" class="bi bi-shield-lock" viewBox="0 0 16 16">
-                                    <path d="M11 1a1 1 0 0 1 1 1v1.507a1 1 0 0 1-.301.714L9.355 5.5l1.344 1.279A1 1 0 0 1 11 7.493V9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7.493a1 1 0 0 1 .301-.714L6.645 5.5 5.301 4.221A1 1 0 0 1 5 3.507V2a1 1 0 0 1 1-1h5z"/>
-                                    <path d="M8 1a2 2 0 0 0-2 2v2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7z"/>
-                                </svg>
+                                <!-- Reemplazado el SVG por la imagen estática -->
+                                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Sortis Motos Logo" style="width: 48px; height: 48px; object-fit: contain;">
                             </div>
                             <h3 class="fw-bold text-dark">Sortis Motos</h3>
                             <p class="text-muted small">Ingresa tu número de DNI para acceder</p>
@@ -91,7 +89,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Para ingresar al portal de clientes de <strong>Sortis Motos</strong>, tu clave es siempre tu **número de DNI** con el que te registraste en el plan.</p>
+                    <p>Para ingresar al portal de clientes de <strong>Sortis Motos</strong>, tu clave es siempre tu <strong>número de DNI</strong> con el que te registraste en el plan.</p>
                     <p class="text-muted small mb-0">Si el sistema no reconoce tu DNI, comunícate con la administración.</p>
                 </div>
                 <div class="modal-footer">
