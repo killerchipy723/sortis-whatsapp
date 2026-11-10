@@ -425,6 +425,35 @@ import atexit
 atexit.register(lambda: scheduler.shutdown())
 
 
+# ----------------- mensajes enviados -----------------------
+from database.connection import get_db
+from flask import render_template
+
+@app.route('/mensajes-enviados')
+def mensajes_enviados():
+    db = get_db()
+    try:
+        # Abrimos el cursor sin parámetros (compatible con SteadyDB)
+        with db.cursor() as cursor:
+            sql = """
+                SELECT 
+                    e.idenvio,
+                    e.idcuota,
+                    e.telefono,
+                    e.mensaje,
+                    e.estado,
+                    e.fecha_envio,
+                    a.apenomb
+                FROM envios_whatsapp e
+                LEFT JOIN afiliado a ON e.idafiliado = a.idafiliado
+                ORDER BY e.fecha_envio DESC
+            """
+            cursor.execute(sql)
+            mensajes = cursor.fetchall()
+    finally:
+        db.close()
+        
+    return render_template('mensajes_enviados.html', mensajes=mensajes)
 
 
 if __name__ == '__main__':
