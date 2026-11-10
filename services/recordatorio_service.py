@@ -6,15 +6,11 @@ class RecordatorioService:
     
     @staticmethod
     def obtener_cuotas_por_vencer(dias_anticipacion=3):
-        """
-        Obtiene las cuotas sin pagar que vencen dentro de `dias_anticipacion` días,
-        trayendo el importe real (ya sea de la cuota o respaldado por el plan)
-        y evitando duplicados de envío en el día.
-        """
         fecha_target = (datetime.now() + timedelta(days=dias_anticipacion)).strftime('%Y-%m-%d')
         conn = get_db()
         try:
-            with conn.cursor() as cursor:
+            # IMPORTANTE: Aseguramos que el cursor devuelva un diccionario para mapear las columnas
+            with conn.cursor(dictionary=True) as cursor:
                 sql = """
                     SELECT 
                         c.idcuota,
