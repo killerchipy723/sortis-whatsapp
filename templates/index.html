@@ -20,6 +20,17 @@
             background: #0f172a;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
+        /* Estilo personalizado para el logo grande con contorno blanco */
+        .logo-custom {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            background: #ffffff;
+            padding: 4px;
+            border-radius: 8px;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
         .card-dashboard {
             border: none;
             border-radius: 12px;
@@ -37,15 +48,26 @@
             font-size: 0.8rem;
             padding: 0.35em 0.65em;
         }
+        /* Tarjetas de planes compactas */
+        .card-plan-compact {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #ffffff;
+            transition: all 0.2s ease;
+        }
+        .card-plan-compact:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
     </style>
 </head>
 <body>
 
-    <!-- Navbar Superior con Logo Estático -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-sortis sticky-top">
+    <!-- Navbar Superior con Logo Grande y Contorno Blanco -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-sortis sticky-top py-2">
         <div class="container-fluid px-4">
             <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="#">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Sortis Motos" style="width: 32px; height: 32px; object-fit: contain;">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Sortis Motos" class="logo-custom">
                 <span>Sortis Motos</span>
             </a>
             <div class="d-flex align-items-center gap-3">
@@ -90,7 +112,7 @@
             </div>
         </div>
 
-        <!-- Tarjetas de Resumen Rápido (Métricas de la Cuenta) -->
+        <!-- Tarjetas de Resumen Rápido (Métricas) -->
         {% if cuotas %}
             {% set total_cuotas = cuotas|length %}
             {% set pagadas = cuotas|selectattr('estado', 'equalto', 'Pagado')|list|length %}
@@ -127,12 +149,11 @@
         <!-- Sección: Estado de Mis Cuotas -->
         <div class="row mb-4">
             <div class="col-12">
-                
                 <div class="card card-dashboard card-plan p-3 p-md-4 bg-white mb-3">
                     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
                         <div>
                             <h5 class="fw-bold mb-1 text-dark"><i class="bi bi-wallet2 text-primary me-2"></i> Estado de Cuenta y Cuotas</h5>
-                            <p class="text-muted small mb-0">Consulta rápida de tus pagos pendientes y realizados.</p>
+                            <p class="text-muted small mb-0">Consulta detallada de tus planes y pagos.</p>
                         </div>
                         
                         {% if cuotas %}
@@ -142,13 +163,13 @@
                         {% endif %}
                     </div>
 
-                    <!-- Tabla Completa Oculta en Acordeón/Desplegable -->
+                    <!-- Tabla Oculta en Acordeón -->
                     <div class="collapse {% if not cuotas %}show{% endif %}" id="tablaDetalleCuotas">
                         <div class="table-responsive mt-2">
                             <table class="table table-hover align-middle mb-0">
                                 <thead class="table-light text-uppercase fs-7">
                                     <tr>
-                                        <th>Plan</th>
+                                        <th>Plan Asociado</th>
                                         <th>N.º Cuota</th>
                                         <th>Vencimiento</th>
                                         <th>Importe</th>
@@ -159,8 +180,10 @@
                                     {% if cuotas %}
                                         {% for c in cuotas %}
                                         <tr>
-                                            <td class="fw-semibold text-dark">{{ c.nombreplan }}</td>
-                                            <td class="fw-bold">N.º {{ c.numcuota }}</td>
+                                            <td>
+                                                <span class="fw-bold text-primary">{{ c.nombreplan }}</span>
+                                            </td>
+                                            <td class="fw-semibold">N.º {{ c.numcuota }}</td>
                                             <td>
                                                 {% if c.fechavenc %}
                                                     {{ c.fechavenc.strftime('%d/%m/%Y') if c.fechavenc.__class__.__name__ == 'date' else c.fechavenc }}
@@ -194,46 +217,55 @@
             </div>
         </div>
 
-        <!-- Sección: Catálogo de Planes Disponibles -->
-        <div class="row">
-            <div class="col-12 mb-3">
-                <h5 class="fw-bold mb-0"><i class="bi bi-grid text-primary me-2"></i> Planes Disponibles en Sortis Motos</h5>
-            </div>
-            
-            {% if planes %}
-                {% for plan in planes %}
-                <div class="col-md-4 mb-3">
-                    <div class="card card-dashboard p-3 h-100 bg-white">
-                        <div class="card-body d-flex flex-column justify-content-between">
-                            <div>
-                                <h5 class="fw-bold text-primary mb-2">{{ plan.nombreplan }}</h5>
-                                <p class="text-muted small mb-3">
-                                    {{ plan.descripcion if plan.descripcion else 'Plan de financiación oficial de Sortis Motos.' }}
-                                </p>
-                                <p class="text-muted small mb-2">
-                                    <i class="bi bi-clock-history me-1"></i> Cantidad de cuotas: <strong>{{ plan.cantcuotas if plan.cantcuotas else 'N/A' }}</strong>
-                                </p>
-                            </div>
-                            <div>
-                                <hr class="text-muted opacity-25">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold fs-5 text-dark">
-                                        ${{ "{:,.0f}".format(plan.importe).replace(",", ".") if plan.importe else "A confirmar" }} 
-                                        <small class="text-muted fs-6">/ cuota</small>
-                                    </span>
-                                    <span class="badge bg-light text-dark border">Disponible</span>
+        <!-- Sección: Catálogo de Planes Disponibles (Colapsado y Compacto) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card card-dashboard p-3 p-md-4 bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="fw-bold mb-1 text-dark"><i class="bi bi-grid text-primary me-2"></i> Catálogo de Planes Disponibles</h5>
+                            <p class="text-muted small mb-0">Explora de forma resumida las opciones de financiación vigentes.</p>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm fw-semibold rounded-pill px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePlanes" aria-expanded="false" aria-controls="collapsePlanes">
+                            <i class="bi bi-chevron-down me-1"></i> Desplegar Planes
+                        </button>
+                    </div>
+
+                    <!-- Bloque colapsado con tarjetas compactas -->
+                    <div class="collapse mt-3" id="collapsePlanes">
+                        <hr class="text-muted opacity-25 mb-3">
+                        <div class="row g-3">
+                            {% if planes %}
+                                {% for plan in planes %}
+                                <div class="col-md-4">
+                                    <div class="card-plan-compact p-3 h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <h6 class="fw-bold text-primary mb-1">{{ plan.nombreplan }}</h6>
+                                            <p class="text-muted small mb-2" style="font-size: 0.85rem;">
+                                                {{ plan.descripcion if plan.descripcion else 'Plan de financiación oficial.' }}
+                                            </p>
+                                        </div>
+                                        <div class="pt-2 border-top border-light">
+                                            <div class="d-flex justify-content-between align-items-center small">
+                                                <span class="text-muted"><i class="bi bi-clock"></i> {{ plan.cantcuotas if plan.cantcuotas else 'N/A' }} cuotas</span>
+                                                <span class="fw-bold text-dark">
+                                                    ${{ "{:,.0f}".format(plan.importe).replace(",", ".") if plan.importe else "Consolidar" }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="col-12">
+                                    <p class="text-muted small mb-0">No hay planes cargados en este momento.</p>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="col-12">
-                    <p class="text-muted">No hay planes cargados en este momento.</p>
-                </div>
-            {% endif %}
 
+                </div>
+            </div>
         </div>
 
     </div>
