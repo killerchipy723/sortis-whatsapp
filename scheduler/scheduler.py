@@ -18,8 +18,8 @@ def iniciar_scheduler(app): # <--- Pasamos 'app' como parámetro
     scheduler.add_job(
         func=tarea_diaria_con_contexto,
         trigger="cron",
-        hour=9,
-        minute=50
+        hour=10,
+        minute=00
     )
     
     scheduler.start()
