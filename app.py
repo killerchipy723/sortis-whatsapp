@@ -1,12 +1,14 @@
+import os
 import logging
 import time
 from datetime import date
+from werkzeug.utils import secure_filename
 import mysql.connector
-from flask import Flask, request, jsonify,render_template,url_for,Request,redirect,flash,session
+from flask import Flask, request, jsonify, render_template, url_for, redirect, flash, session
 from services.whatsapp_service import WhatsAppService
 from config import Config
 from apscheduler.schedulers.background import BackgroundScheduler
-from services.recordatorio_service import RecordatorioService  # Ajusta la ruta según tu estructura
+from services.recordatorio_service import RecordatorioService 
 from scheduler import iniciar_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -16,21 +18,32 @@ app = Flask(__name__)
 app.secret_key = 'sortis_motos_key_secreta_2026'
 VERIFY_TOKEN = "sortis_motos_token_seguro"
 
-# Diccionario para gestionar el estado y la sesión de cada usuario en memoria
-# Estructura: { remitente: { "estado": "...", "ultimo_tiempo": timestamp, "dni": "...", "id_afiliado": "..." } }
+# Directorios para subida de imágenes de planes y ganadores
+UPLOAD_FOLDER_PLANES = 'static/img/planes'
+UPLOAD_FOLDER_GANADORES = 'static/img/ganadores'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+
+app.config['UPLOAD_FOLDER_PLANES'] = UPLOAD_FOLDER_PLANES
+app.config['UPLOAD_FOLDER_GANADORES'] = UPLOAD_FOLDER_GANADORES
+
+os.makedirs(UPLOAD_FOLDER_PLANES, exist_ok=True)
+os.makedirs(UPLOAD_FOLDER_GANADORES, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Diccionario para gestionar sesiones de WhatsApp en memoria
 USER_SESSIONS = {}
-TIMEOUT_SESION = 600  # 10 minutos de inactividad en segundos (10 * 60)
+TIMEOUT_SESION = 600  # 10 minutos
 
 def obtener_o_crear_sesion(remitente):
-    """Obtiene la sesión del usuario, validando si expiró por inactividad."""
     ahora = time.time()
     if remitente in USER_SESSIONS:
         sesion = USER_SESSIONS[remitente]
-        # Si pasó el tiempo límite de inactividad, reiniciamos la sesión
         if ahora - sesion.get("ultimo_tiempo", 0) > TIMEOUT_SESION:
             USER_SESSIONS[remitente] = {"estado": "INICIO", "ultimo_tiempo": ahora}
         else:
-            sesion["ultimo_tiempo"] = ahora  # Actualizamos el timestamp de actividad
+            sesion["ultimo_tiempo"] = ahora
     else:
         USER_SESSIONS[remitente] = {"estado": "INICIO", "ultimo_tiempo": ahora}
     return USER_SESSIONS[remitente]
@@ -44,10 +57,49 @@ def obtener_conexion_db():
         database=getattr(Config, 'DB_NAME', 'sortis_motos')
     )
 
-# --- RUTA DE LOGIN (Página principal) ---
-@app.route("/", methods=["GET", "POST"])
+# =========================================================
+# 1. RUTA PRINCIPAL: LANDING PAGE COMERCIAL (PÚBLICA)
+# =========================================================
+@app.route("/")
+def landing():
+    conn = None
+    cursor = None
+    planes = []
+    ganadores = []
+    noticias = []
+    
+    try:
+        conn = obtener_conexion_db()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Consultar planes (asegúrate de tener la columna 'imagen' en tu tabla plan)
+        cursor.execute("SELECT * FROM plan")
+        planes = cursor.fetchall()
+        
+        # Consultar novedades y ganadores (si creaste la tabla novedades_web)
+        try:
+            cursor.execute("SELECT * FROM novedades_web ORDER BY fecha_creacion DESC")
+            novedades = cursor.fetchall()
+            ganadores = [n for n in novedades if n['tipo'] == 'GANADOR']
+            noticias = [n for n in novedades if n['tipo'] == 'NOTICIA']
+        except Exception:
+            # Si la tabla novedades_web todavía no fue creada en MySQL, evitamos que rompa la app
+            pass
+            
+    except Exception as e:
+        print(f"Error al cargar la landing page: {str(e)}")
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+        
+    return render_template('landing.html', planes=planes, ganadores=ganadores, noticias=noticias)
+
+# =========================================================
+# 2. RUTA DE LOGIN (ACCESO PARA CLIENTES)
+# =========================================================
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    error_mensaje = None # Variable para el mensaje de error directo
+    error_mensaje = None
     
     if request.method == "POST":
         password_ingresada = request.form.get("password")
@@ -71,7 +123,6 @@ def login():
                     session['user_dni'] = afiliado['dni']
                     return redirect(url_for('index'))
                 else:
-                    # Mensaje claro y directo cuando el DNI no existe
                     error_mensaje = "DNI no encontrado. Recuerda que tu contraseña es tu número de DNI."
                     
             except Exception as e:
@@ -82,10 +133,11 @@ def login():
                 if cursor: cursor.close()
                 if conn: conn.close()
 
-    # Le pasamos la variable 'error' a la plantilla
     return render_template('login.html', error=error_mensaje)
 
-# --- RUTA DEL INDEX (Panel principal post-login) ---
+# =========================================================
+# 3. RUTA DEL INDEX (PANEL PRINCIPAL POST-LOGIN)
+# =========================================================
 @app.route("/index")
 def index():
     if 'user_id' not in session:
@@ -117,7 +169,7 @@ def index():
         cursor.execute(query_cuotas, (idafiliado,))
         cuotas = cursor.fetchall()
         
-        # 2. Consultar el catálogo real de planes desde la tabla plan
+        # 2. Consultar el catálogo real de planes
         query_planes = "SELECT idplan, nombreplan, descripcion, cantcuotas, importe FROM plan"
         cursor.execute(query_planes)
         planes = cursor.fetchall()
@@ -130,13 +182,146 @@ def index():
         
     return render_template('index.html', cuotas=cuotas, planes=planes)
 
-# ----------------- CERRAR SESSION --------------------------------------
+# =========================================================
+# 4. RUTA PARA SUBIR/ACTUALIZAR IMAGEN DE UN PLAN (ADMIN)
+# =========================================================
+@app.route('/admin/plan/imagen/<int:idplan>', methods=['POST'])
+def actualizar_imagen_plan(idplan):
+    if 'imagen' not in request.files:
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('landing'))
+        
+    file = request.files['imagen']
+    if file and allowed_file(file.filename):
+        filename = secure_filename(f"plan_{idplan}_{file.filename}")
+        file.save(os.path.join(app.config['UPLOAD_FOLDER_PLANES'], filename))
+        
+        conn = None
+        cursor = None
+        try:
+            conn = obtener_conexion_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE plan SET imagen = %s WHERE idplan = %s", (filename, idplan))
+            conn.commit()
+            flash('Imagen del plan actualizada correctamente', 'success')
+        except Exception as e:
+            print(f"Error al actualizar imagen: {e}")
+            flash('Error al guardar la imagen en la base de datos', 'danger')
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+            
+    return redirect(url_for('landing'))
+
+# =========================================================
+# 5. CERRAR SESIÓN
+# =========================================================
 @app.route("/logout")
 def logout():
-    # Limpiamos todas las variables de la sesión
     session.clear()
     flash("Has cerrado sesión correctamente.", "info")
-    return redirect(url_for('login'))
+    return redirect(url_for('landing')) # Al salir, lo devolvemos a la landing page pública
+
+
+# =========================================================
+# PANEL DE ADMINISTRACIÓN (GESTIÓN DE GANADORES Y NOTICIAS)
+# =========================================================
+
+# 1. Ruta de Login para el Administrador (puedes usar una clave fija o verificar en BD)
+@app.route("/admin/login", methods=["GET", "POST"])
+@app.route("/admin", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        clave = request.form.get("password")
+        # Definí aquí tu contraseña de administrador secreta
+        if clave == "sortis2026admin": 
+            session['is_admin'] = True
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash("Contraseña de administrador incorrecta.", "danger")
+            
+    return render_template('admin_login.html')
+
+# 2. Dashboard Principal del Admin
+@app.route("/admin/dashboard")
+def admin_dashboard():
+    if not session.get('is_admin'):
+        flash("Debes iniciar sesión como administrador.", "warning")
+        return redirect(url_for('admin_login'))
+        
+    conn = obtener_conexion_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM novedades_web ORDER BY fecha_creacion DESC")
+        elementos = cursor.fetchall()
+    except Exception as e:
+        print(f"Error al cargar admin: {e}")
+        elementos = []
+    finally:
+        cursor.close()
+        conn.close()
+        
+    return render_template('admin_dashboard.html', elementos=elementos)
+
+# 3. Guardar Nuevo Ganador o Noticia
+@app.route("/admin/guardar", methods=["POST"])
+def admin_guardar():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+        
+    tipo = request.form.get("tipo") # 'GANADOR' o 'NOTICIA'
+    titulo = request.form.get("titulo")
+    subtitulo = request.form.get("subtitulo")
+    file = request.files.get("imagen")
+    
+    filename = "default.jpg"
+    if file and allowed_file(file.filename):
+        filename = secure_filename(f"{tipo.lower()}_{int(time.time())}_{file.filename}")
+        file.save(os.path.join(app.config['UPLOAD_FOLDER_GANADORES'], filename))
+        
+    conn = obtener_conexion_db()
+    cursor = conn.cursor()
+    try:
+        query = "INSERT INTO novedades_web (tipo, titulo, subtitulo, imagen) VALUES (%s, %s, %s, %s)"
+        cursor.execute(query, (tipo, titulo, subtitulo, filename))
+        conn.commit()
+        flash("Registro guardado y publicado correctamente.", "success")
+    except Exception as e:
+        print(f"Error al insertar: {e}")
+        flash("Error al guardar en la base de datos.", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+        
+    return redirect(url_for('admin_dashboard'))
+
+# 4. Eliminar Ganador o Noticia
+@app.route("/admin/eliminar/<int:id>", methods=["POST"])
+def admin_eliminar(id):
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+        
+    conn = obtener_conexion_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM novedades_web WHERE id = %s", (id,))
+        conn.commit()
+        flash("Elemento eliminado correctamente.", "info")
+    except Exception as e:
+        print(f"Error al eliminar: {e}")
+        flash("No se pudo eliminar el elemento.", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+        
+    return redirect(url_for('admin_dashboard'))
+
+# 5. Cerrar sesión de Admin
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop('is_admin', None)
+    flash("Sesión de administrador cerrada.", "info")
+    return redirect(url_for('landing'))
 
 
 @app.route("/privacidad", methods=["GET"])
