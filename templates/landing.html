@@ -170,7 +170,7 @@
                                     </div>
                                     <div class="d-grid">
                                         <button type="button" class="btn btn-success fw-bold rounded-pill py-2 shadow-sm" 
-                                                onclick="abrirInscripcion('{{ plan.nombreplan }}')">
+                                                onclick="abrirInscripcion('{{ plan.idplan }}', '{{ plan.nombreplan }}')">
                                             Inscribirme en este Plan <i class="bi bi-arrow-right ms-1"></i>
                                         </button>
                                     </div>
@@ -264,39 +264,83 @@
         </div>
     </footer>
 
-    <!-- Modal Pre-Inscripción -->
-    <div class="modal fade" id="modalInscripcion" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Solicitar Inscripción</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <p class="small text-muted">Completá tus datos y un asesor se comunicará por WhatsApp para darte de alta en el plan <strong id="nombrePlanSeleccionado" class="text-success"></strong>.</p>
-                    <form id="formInscripcion">
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Nombre y Apellido</label>
-                            <input type="text" id="insNombre" class="form-control" required placeholder="Ej: Juan Pérez">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">DNI</label>
-                            <input type="number" id="insDni" class="form-control" required placeholder="Sin puntos">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Teléfono (WhatsApp)</label>
-                            <input type="tel" id="insTel" class="form-control" required placeholder="Ej: 3815123456">
-                        </div>
-                        <div class="d-grid mt-4">
-                            <button type="submit" class="btn btn-success fw-bold rounded-pill py-2">
-                                <i class="bi bi-whatsapp me-2"></i> Enviar Solicitud por WhatsApp
-                            </button>
-                        </div>
-                    </form>
-                </div>
+   <!-- Modal Pre-Inscripción y Aceptación de Contrato -->
+<div class="modal fade" id="modalInscripcion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Solicitud de Inscripción</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">Estás a un paso de sumarte al plan <strong id="nombrePlanSeleccionado" class="text-success"></strong>. Completa tus datos:</p>
+                
+                <form id="formInscripcion">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Nombre y Apellido</label>
+                        <input type="text" id="insNombre" class="form-control" style="text-transform: uppercase;" required placeholder="Ej: JUAN PÉREZ">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">DNI</label>
+                        <input type="number" id="insDni" class="form-control" required placeholder="Sin puntos">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">CUIL</label>
+                        <input type="text" id="insCuil" class="form-control" required placeholder="Ej: 20-33445566-7">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Domicilio</label>
+                        <input type="text" id="insDomicilio" class="form-control" required placeholder="Ej: Av. San Martín 450">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Teléfono (WhatsApp)</label>
+                        <input type="tel" id="insTel" class="form-control" required placeholder="Ej: 3815123456">
+                    </div>
+
+                    <!-- Checkbox de Contrato Obligatorio -->
+                    <div class="mb-3 form-check bg-light p-3 rounded-3 border">
+                        <input type="checkbox" class="form-check-input mt-1" id="checkContrato" required>
+                        <label class="form-check-label small text-secondary ms-1" for="checkContrato">
+                            Confirmo que he leído y acepto los <a href="#" class="text-success fw-bold text-decoration-underline" data-bs-toggle="modal" data-bs-target="#modalContratoTexto">términos y condiciones del contrato</a> de adjudicación de Sortis Motos[cite: 1].
+                        </label>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-success fw-bold rounded-pill py-2 shadow-sm">
+                            <i class="bi bi-whatsapp me-2"></i> Confirmar Inscripción y Pagar
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
+</div>
+
+<!-- Modal Secundario: Texto del Contrato -->
+<div class="modal fade" id="modalContratoTexto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold fs-6">Contrato de Adjudicación - Sortis Motos</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 small text-muted">
+                <h6 class="fw-bold text-dark mb-2">TÉRMINOS Y CONDICIONES GENERALES</h6>
+                <p>1. El presente contrato rige la suscripción al plan de ahorro y adjudicación directa ofrecido por Sortis Motos, con domicilio en José Ignacio Sierra 119, Metán, Salta[cite: 1].</p>
+                <p>2. Las cuotas mensuales se ajustarán conforme al valor estipulado en el plan elegido y vencerán indefectiblemente en la fecha fijada en el sistema de gestión del cliente.</p>
+                <p>3. El suscriptor acepta que el mantenimiento de la cuota al día es requisito indispensable para participar de los actos de sorteo y adjudicación mensual.</p>
+                <p>4. Toda gestión de pago virtual y alta de plan quedará sujeta a la verificación y validación por parte de la administración.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#modalInscripcion">Volver</button>
+            </div>
+        </div>
+    </div>
+</div>
 
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

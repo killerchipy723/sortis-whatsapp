@@ -10,6 +10,7 @@ from config import Config
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.recordatorio_service import RecordatorioService 
 from scheduler import iniciar_scheduler
+from dateutil.relativedelta import relativedelta
 
 logging.basicConfig(level=logging.INFO)
 
@@ -323,6 +324,102 @@ def admin_logout():
     flash("Sesión de administrador cerrada.", "info")
     return redirect(url_for('landing'))
 
+# =========================================================
+# GESTION DE CLIENTES
+# =========================================================
+
+
+@app.route("/api/inscribir", methods=["POST"])
+def procesar_inscripcion_virtual():
+    # Recibimos todos los datos del modal de la Landing Page
+    # Forzamos el nombre en mayúsculas por seguridad
+    nombre = request.form.get("nombre", "").strip().upper()
+    dni = request.form.get("dni", "").strip()
+    cuil = request.form.get("cuil", "").strip()
+    domicilio = request.form.get("domicilio", "").strip()
+    telefono = request.form.get("telefono", "").strip()
+    idplan = request.form.get("idplan")
+    acepta_contrato = request.form.get("contrato") # Validación del contrato
+    
+    # Validar aceptación de términos
+    if not acepta_contrato or acepta_contrato != "on":
+        return jsonify({"success": False, "message": "Debes aceptar los términos del contrato de adjudicación para continuar."})
+    
+    conn = obtener_conexion_db()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # PASO 1: Verificar si el afiliado ya existe por su DNI
+        cursor.execute("SELECT idafiliado FROM afiliado WHERE dni = %s LIMIT 1", (dni,))
+        afiliado = cursor.fetchone()
+        
+        if afiliado:
+            id_afiliado = afiliado['idafiliado']
+        else:
+            # Si no existe, lo registramos automáticamente en la tabla afiliado con todos sus datos
+            # (idvendedor = 1 asume un vendedor genérico web/online por defecto)
+            query_afiliado = """
+                INSERT INTO afiliado (apenomb, dni, cuil, domicilio, telefono, estado, idvendedor) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(query_afiliado, (nombre, dni, cuil, domicilio, telefono, "Activo", 1))
+            conn.commit()
+            id_afiliado = cursor.lastrowid
+            
+        # PASO 2: Verificar si ya tiene este plan activo para evitar duplicados
+        cursor.execute("SELECT COUNT(*) AS total FROM altaplanafil WHERE idafiliado = %s AND idplan = %s", (id_afiliado, idplan))
+        if cursor.fetchone()['total'] > 0:
+            return jsonify({"success": False, "message": "Ya te encuentras inscripto en este plan."})
+            
+        # PASO 3: Obtener importe y cantidad de cuotas del plan
+        cursor.execute("SELECT importe, cantcuotas FROM plan WHERE idplan = %s", (idplan,))
+        plan = cursor.fetchone()
+        
+        if not plan:
+            return jsonify({"success": False, "message": "El plan seleccionado no existe."})
+            
+        importe_plan = plan['importe']
+        cant_cuotas = plan['cantcuotas']
+        
+        # PASO 4: Dar de alta el plan en altaplanafil
+        fecha_alta = date.today()
+        fecha_cobro = fecha_alta + relativedelta(months=1) # Primer vencimiento al mes siguiente
+        
+        query_alta = """
+            INSERT INTO altaplanafil (idafiliado, idplan, idvendedor, fechalta, fechacobro, importe, estado) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(query_alta, (id_afiliado, idplan, 1, fecha_alta, fecha_cobro, importe_plan, "Pendiente"))
+        conn.commit()
+        id_alta = cursor.lastrowid
+        
+        # PASO 5: Generar las cuotas automáticamente mes a mes
+        fecha_vencimiento = fecha_cobro
+        for num_cuota in range(1, cant_cuotas + 1):
+            query_cuota = """
+                INSERT INTO cuotas (idalta, numcuota, fechavenc, fechapago, importe, estado, obs) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(query_cuota, (
+                id_alta, 
+                num_cuota, 
+                fecha_vencimiento, 
+                None, 
+                importe_plan, 
+                "Pendiente", 
+                "Inscripción Web Virtual"
+            ))
+            conn.commit()
+            fecha_vencimiento = fecha_vencimiento + relativedelta(months=1)
+            
+        return jsonify({"success": True, "message": "¡Inscripción registrada con éxito! Generando contrato..."})
+        
+    except Exception as e:
+        print(f"Error en inscripción: {str(e)}")
+        return jsonify({"success": False, "message": "Ocurrió un error al procesar la alta en el sistema."})
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route("/privacidad", methods=["GET"])
 def privacidad():
